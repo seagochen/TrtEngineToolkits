@@ -1,0 +1,11 @@
+# Ignore some folders
+tarballs/
+tensorrt/
+build/
+cmake-build-debug/
+
+# Ignore the generated engine files
+*.engine
+
+# Ignore Jetbrains IDE folders
+.idea/
