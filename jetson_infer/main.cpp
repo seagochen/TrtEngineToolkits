@@ -1,6 +1,7 @@
-#include "common/engine_loader.hpp"
 #include <opencv2/opencv.hpp>
 #include <map>
+
+#include "common/engine_loader.h"
 
 using namespace nvinfer1;
 
@@ -23,17 +24,17 @@ int main() {
 
     for (const auto& name : tensor_names) {
         // 获取每个张量的大小
-        size_t tensor_size = getTensorSizeByName(engine.get(), name);
+        auto tensor_dims = getTensorDimsByName(engine.get(), name);
 
         // 分配GPU内存
         void* buffer;
-        cudaMalloc(&buffer, tensor_size);
+        cudaMalloc(&buffer, tensor_dims.size);
 
         // 将分配的内存存入map
         buffers[name] = buffer;
 
         std::cout << "Allocated buffer for tensor: " << name
-                  << " with size: " << tensor_size << " bytes." << std::endl;
+                  << " with size: " << tensor_dims.size << " bytes." << std::endl;
     }
 
     // TODO: 将缓冲区传递给推理引擎，并执行推理

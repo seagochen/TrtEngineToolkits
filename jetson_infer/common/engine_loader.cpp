@@ -1,24 +1,23 @@
-#ifndef __ENGINE_LOADER_HPP__
-#define __ENGINE_LOADER_HPP__
+#include "engine_loader.h"
 
-#include <NvInfer.h>
-#include <NvInferRuntime.h>
 #include <string>
 #include <fstream>
 #include <iostream>
-#include <vector>
-#include <memory>
+
+
+// Determine the TensorRT version
+#if NV_TENSORRT_MAJOR >= 10
+#define TENSORRT_VERSION_10
+#elif NV_TENSORRT_MAJOR == 8
+#define TENSORRT_VERSION_8
+#else
+#error "Unsupported TensorRT version"
+#endif
 
 using namespace nvinfer1;
 
-class Logger : public ILogger {
-    void log(Severity severity, const char* msg) noexcept override {
-        if (severity != Severity::kINFO) {
-            std::cout << msg << std::endl;
-        }
-    }
-} gLogger;
-
+// Define a global logger here.
+Logger gLogger;
 
 std::unique_ptr<ICudaEngine, void(*)(ICudaEngine*)> loadEngine(const std::string& engineFile) {
     std::ifstream file(engineFile, std::ios::binary);
@@ -50,79 +49,65 @@ std::unique_ptr<ICudaEngine, void(*)(ICudaEngine*)> loadEngine(const std::string
         exit(-1);
     }
 
-    // Return the engine
     return engine;
 }
 
-
 std::vector<std::string> getTensorNamesFromModel(ICudaEngine* engine) {
-
     std::vector<std::string> tensor_names;
 
-//    // TensorRT version 10
-//    for (int i = 0, e = engine->getNbIOTensors(); i < e; i++) {
-//        auto const name = engine->getIOTensorName(i);
-//
-//        // Add the name to the vector
-//        tensor_names.emplace_back(name);
-//    }
-
+#ifdef TENSORRT_VERSION_10
+    // TensorRT version 10
+    for (int i = 0, e = engine->getNbIOTensors(); i < e; i++) {
+        auto const name = engine->getIOTensorName(i);
+        tensor_names.emplace_back(name);
+    }
+#elif defined(TENSORRT_VERSION_8)
     // TensorRT version 8
     int nbBindings = engine->getNbBindings();
     for (int i = 0; i < nbBindings; ++i) {
         const char* name = engine->getBindingName(i);
         tensor_names.emplace_back(name);
     }
+#endif
 
     return tensor_names;
 }
 
-size_t getTensorSizeByName(ICudaEngine* engine, std::string tensor_name) {
-//    // Get the dimensions of the given tensor, TensorRT version 10
-//     auto const dims = engine->getTensorShape(tensor_name.c_str());
-//
-//    // Get the number of dimensions
-//    int nbDims = dims.nbDims;
-//
-//    // Log the number of dimensions for debugging
-//    std::cout << "Tensor " << tensor_name << " has " << nbDims << " dimensions." << std::endl;
-//
-//    // Calculate the size of the tensor by multiplying the dimensions
-//    size_t size = 1;
-//    for (int i = 0; i < nbDims; ++i) {
-//        std::cout << dims.d[i] << "x";
-//        size *= dims.d[i];
-//    }
-//    std::cout << std::endl;
-//
-//    return size;
+// Function to get tensor dimensions and size
+TensorDimensions getTensorDimsByName(ICudaEngine* engine, const std::string& tensor_name) {
+    TensorDimensions tensor_dims;
 
-    // TensorRT 8
-    // 通过名字获取绑定的索引
+#ifdef TENSORRT_VERSION_10
+    // TensorRT version 10
+    auto const dims = engine->getTensorShape(tensor_name.c_str());
+    int nbDims = dims.nbDims;
+
+    tensor_dims.size = 1;
+    for (int i = 0; i < nbDims; ++i) {
+        tensor_dims.dims.push_back(dims.d[i]);
+        tensor_dims.size *= dims.d[i];
+    }
+
+#elif defined(TENSORRT_VERSION_8)
+    // TensorRT version 8
     int bindingIndex = engine->getBindingIndex(tensor_name.c_str());
     if (bindingIndex == -1) {
         std::cerr << "Tensor name not found: " << tensor_name << std::endl;
         exit(-1);
     }
 
-    // 获取绑定的维度
     auto dims = engine->getBindingDimensions(bindingIndex);
-
-    // 获取维度的数量
     int nbDims = dims.nbDims;
 
-    // 输出维度数量用于调试
-    std::cout << "Tensor " << tensor_name << " has " << nbDims << " dimensions." << std::endl;
-
-    // 通过乘积计算张量的大小
-    size_t size = 1;
+    tensor_dims.size = 1;
     for (int i = 0; i < nbDims; ++i) {
-        std::cout << dims.d[i] << "x";
-        size *= dims.d[i];
+        tensor_dims.dims.push_back(dims.d[i]);
+        tensor_dims.size *= dims.d[i];
     }
-    std::cout << std::endl;
 
-    return size;
+#endif
+
+    return tensor_dims;
 }
 
 std::unique_ptr<IExecutionContext, void(*)(IExecutionContext*)> createExecutionContext(ICudaEngine* engine) {
@@ -140,4 +125,3 @@ std::unique_ptr<IExecutionContext, void(*)(IExecutionContext*)> createExecutionC
     return std::unique_ptr<IExecutionContext, void(*)(IExecutionContext*)>(context, [](IExecutionContext* c) { delete c; });
 }
 
-#endif // __ENGINE_LOADER_HPP__

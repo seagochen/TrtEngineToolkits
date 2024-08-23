@@ -1,7 +1,8 @@
-#ifndef __CUDA_MATRIX_OP_HPP__
-#define __CUDA_MATRIX_OP_HPP__
+//
+// Created by vipuser on 8/23/24.
+//
 
-#include <cuda_runtime.h>
+#include "cu_memory.cuh"
 
 
 // 切割数组
@@ -15,7 +16,6 @@ __global__ void splitArrayKernel(const int *input, int *output, int arraySize, i
     }
 }
 
-
 // 合并数组
 __global__ void mergeArrayKernel(const int *input, int *output, int arraySize, int chunkSize) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -27,14 +27,11 @@ __global__ void mergeArrayKernel(const int *input, int *output, int arraySize, i
     }
 }
 
-
 // 提取数组片段
- __global__ void extractSegmentKernel(const int *input, int *output, int startIndex, int segmentLength) {
+__global__ void extractSegmentKernel(const int *input, int *output, int startIndex, int segmentLength) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < segmentLength) {
         output[idx] = input[startIndex + idx];
     }
 }
-
-#endif // __CUDA_MATRIX_OP_HPP__

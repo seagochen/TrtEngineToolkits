@@ -1,7 +1,5 @@
-#ifndef __CUDA_MATRIX_OP_HPP__
-#define __CUDA_MATRIX_OP_HPP__
+#include "cu_matrix.cuh"
 
-#include <cuda_runtime.h>
 #include <float.h>
 
 // 矩阵加法
@@ -93,7 +91,7 @@ __global__ void matrixScalarSubKernel(const float* A, float scalar, float* C, in
 }
 
 // 矩阵乘法
-__global__ void matrixMulKernel(float* d_M, float* d_N, float* d_O, int M_rows, int M_cols, int N_cols) {
+__global__ void matrixMulKernel(const float* __restrict__ d_M, const float* __restrict__ d_N, float* d_O, int M_rows, int M_cols, int N_cols) {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -107,7 +105,7 @@ __global__ void matrixMulKernel(float* d_M, float* d_N, float* d_O, int M_rows, 
 }
 
 // 矩阵转置
-__global__ void matrixTransposeKernel(float* d_input, float* d_output, int rows, int cols) {
+__global__ void matrixTransposeKernel(const float* __restrict__ d_input, float* d_output, int rows, int cols) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -174,7 +172,7 @@ __global__ void matrixColMaxKernel(const float* A, float* colMax, int numRows, i
 
 // 矩阵点积
 __global__ void matrixDotProductKernel(const float* A, const float* B, float* result, int numRows, int numCols) {
-    __shared__ float cache[256];  // 假设线程块大小为256
+    extern __shared__ float cache[];
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
     int cacheIdx = threadIdx.x;
 
@@ -205,7 +203,7 @@ __global__ void matrixDotProductKernel(const float* A, const float* B, float* re
 
 // Frobenius 范数
 __global__ void matrixFrobeniusNormKernel(const float* A, float* result, int numRows, int numCols) {
-    __shared__ float cache[256];  // 假设线程块大小为256
+    extern __shared__ float cache[];
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
     int cacheIdx = threadIdx.x;
 
@@ -245,35 +243,8 @@ __global__ void matrixNormalizeKernel(float* A, float* result, int numRows, int 
     }
 }
 
-// 向量求和
-__global__ void sumKernel(float* d_input, float* d_sum, int size) {
-    extern __shared__ float sdata[];
-    int tid = threadIdx.x;
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (i < size) {
-        sdata[tid] = d_input[i];
-    } else {
-        sdata[tid] = 0.0f;
-    }
-
-    __syncthreads();
-
-    for (int s = blockDim.x / 2; s > 0; s >>= 1) {
-        if (tid < s) {
-            sdata[tid] += sdata[tid + s];
-        }
-        __syncthreads();
-    }
-
-    if (tid == 0) {
-        d_sum[blockIdx.x] = sdata[0];
-    }
-}
-
-
 // 矩阵最大值
-__global__ void findMaxKernel(float* d_input, float* d_max, int size) {
+__global__ void findMaxKernel(const float* d_input, float* d_max, int size) {
     extern __shared__ float sdata[];
     int tid = threadIdx.x;
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -299,7 +270,7 @@ __global__ void findMaxKernel(float* d_input, float* d_max, int size) {
 }
 
 // 矩阵最小值
-__global__ void findMinKernel(float* d_input, float* d_min, int size) {
+__global__ void findMinKernel(const float* d_input, float* d_min, int size) {
     extern __shared__ float sdata[];
     int tid = threadIdx.x;
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -323,5 +294,3 @@ __global__ void findMinKernel(float* d_input, float* d_min, int size) {
         d_min[blockIdx.x] = sdata[0];
     }
 }
-
-#endif // __CUDA_MATRIX_OP_HPP__
