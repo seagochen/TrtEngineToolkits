@@ -124,4 +124,3 @@ std::unique_ptr<IExecutionContext, void(*)(IExecutionContext*)> createExecutionC
 
     return std::unique_ptr<IExecutionContext, void(*)(IExecutionContext*)>(context, [](IExecutionContext* c) { delete c; });
 }
-

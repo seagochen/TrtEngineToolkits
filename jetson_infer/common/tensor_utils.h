@@ -8,12 +8,13 @@
 #include <iostream>
 #include <cuda_runtime.h>
 #include <vector>
+#include <memory>
+#include <string>
 
-// Define a struct to store tensor dimensions
-struct TensorDimensions {
-    std::vector<int> dims;
-    size_t size;
-};
+#include <NvInfer.h>
+#include <NvInferRuntime.h>
+
+#include "engine_loader.h"
 
 float** allocate2DArray(TensorDimensions& tensor_dims, void* buffer);
 
