@@ -63,6 +63,7 @@ target_include_directories(jetson_infer PRIVATE
         ${PROJECT_SOURCE_DIR}/common
         ${PROJECT_SOURCE_DIR}/utils
         ${PROJECT_SOURCE_DIR}/cumatrix
+        ${PROJECT_SOURCE_DIR}/cnn_toolkits
         ${CUDA_INCLUDE_DIRS}
         ${TENSORRT_INCLUDE_DIRS}  # 注意这里使用的是架构区分后的路径
         ${OpenCV_INCLUDE_DIRS}
@@ -73,5 +74,6 @@ target_link_libraries(jetson_infer PRIVATE
         ${CUDA_LIBRARIES}
         ${OpenCV_LIBRARIES}
         ${TENSORRT_LIBS}  # 同样，这里根据架构区分后的库进行链接
-        ${PROJECT_SOURCE_DIR}/cumatrix/libcumatrix.a  # Adjust path as necessary
+        ${PROJECT_SOURCE_DIR}/cumatrix/libcumatrix.a  # Integrate CUDA component: cumatrix
+        ${PROJECT_SOURCE_DIR}/cnn_toolkits/libcnn_toolkits.a  # Integrate CUDA component: cnn_toolkits
 )

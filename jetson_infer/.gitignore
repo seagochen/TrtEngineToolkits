@@ -5,7 +5,6 @@ build/
 cmake-build-debug/
 .idea/
 .vscode/
-models/
 
 # Ignore generated files
 *.engine
@@ -72,3 +71,7 @@ dkms.conf
 
 # Prerequisites
 *.d
+
+# Links
+res
+models

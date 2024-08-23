@@ -80,23 +80,23 @@ void nms_cuda(const std::vector<float>& h_bboxes, const std::vector<float>& h_sc
     cudaFree(d_keep_count);
 }
 
-int main() {
-    std::vector<float> bboxes = {
-            50, 50, 100, 100,
-            60, 60, 110, 110,
-            55, 55, 105, 105,
-            100, 100, 150, 150,
-            150, 150, 200, 200
-    };
-    std::vector<float> scores = {0.9, 0.8, 0.85, 0.7, 0.6};
-    float iou_threshold = 0.5;
-
-    std::vector<int> keep_indices;
-    nms_cuda(bboxes, scores, iou_threshold, keep_indices);
-
-    for (int i : keep_indices) {
-        std::cout << "Keep index: " << i << std::endl;
-    }
-
-    return 0;
-}
+//int main() {
+//    std::vector<float> bboxes = {
+//            50, 50, 100, 100,
+//            60, 60, 110, 110,
+//            55, 55, 105, 105,
+//            100, 100, 150, 150,
+//            150, 150, 200, 200
+//    };
+//    std::vector<float> scores = {0.9, 0.8, 0.85, 0.7, 0.6};
+//    float iou_threshold = 0.5;
+//
+//    std::vector<int> keep_indices;
+//    nms_cuda(bboxes, scores, iou_threshold, keep_indices);
+//
+//    for (int i : keep_indices) {
+//        std::cout << "Keep index: " << i << std::endl;
+//    }
+//
+//    return 0;
+//}

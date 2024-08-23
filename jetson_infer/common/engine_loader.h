@@ -12,16 +12,7 @@
 #include <memory>
 #include <iostream>
 
-#include "tensor.h"
-
-// Logger class for inference engine
-class Logger : public nvinfer1::ILogger {
-    void log(Severity severity, const char* msg) noexcept override {
-        if (severity != Severity::kINFO) {
-            std::cout << msg << std::endl;
-        }
-    }
-};
+#include "tensor.hpp"
 
 
 /**
@@ -35,7 +26,8 @@ class Logger : public nvinfer1::ILogger {
  * @return A unique pointer to the deserialized ICudaEngine, with a custom deleter
  *         to ensure proper cleanup.
  */
-std::unique_ptr<nvinfer1::ICudaEngine, void(*)(nvinfer1::ICudaEngine*)> loadEngine(const std::string& engineFile);
+std::unique_ptr<nvinfer1::ICudaEngine, void(*)(nvinfer1::ICudaEngine*)>
+loadEngine(const std::string& engineFile);
 
 /**
  * @brief Creates an execution context for the given TensorRT engine.
@@ -47,7 +39,8 @@ std::unique_ptr<nvinfer1::ICudaEngine, void(*)(nvinfer1::ICudaEngine*)> loadEngi
  * @param engine A pointer to the ICudaEngine object.
  * @return A unique pointer to the created IExecutionContext object.
  */
-std::unique_ptr<nvinfer1::IExecutionContext, void(*)(nvinfer1::IExecutionContext*)> createExecutionContext(nvinfer1::ICudaEngine* engine);
+std::unique_ptr<nvinfer1::IExecutionContext, void(*)(nvinfer1::IExecutionContext*)>
+createExecutionContext(nvinfer1::ICudaEngine* engine);
 
 
 /**
@@ -59,7 +52,8 @@ std::unique_ptr<nvinfer1::IExecutionContext, void(*)(nvinfer1::IExecutionContext
  * @param engine A pointer to the ICudaEngine object.
  * @return A vector of strings containing the names of all tensors in the model.
  */
-std::vector<std::string> getTensorNamesFromModel(nvinfer1::ICudaEngine* engine);
+std::vector<std::string>
+getTensorNamesFromModel(nvinfer1::ICudaEngine* engine);
 
 /**
  * @brief Retrieves the dimensions and size of a specific TensorBase by name.
@@ -71,8 +65,30 @@ std::vector<std::string> getTensorNamesFromModel(nvinfer1::ICudaEngine* engine);
  *
  * @param engine A pointer to the ICudaEngine object.
  * @param tensor_name The name of the TensorBase whose dimensions are to be retrieved.
+ * @param type The type of the tensor.
  * @return A TensorDimensions struct containing the TensorBase's dimensions and size in bytes.
  */
-TensorDimensions getTensorDimsByName(nvinfer1::ICudaEngine* engine, const std::string& tensor_name);
+TensorDimensions
+getTensorDimsByName(nvinfer1::ICudaEngine* engine, const std::string& tensor_name, tensor_type type);
+
+
+/**
+ * @brief Infers the output tensor from the input tensor.
+ * @tparam T The data type of the input and output tensors.
+ * @param context The execution context for the engine.
+ * @param input The input tensor.
+ * @param output The output tensor.
+ */
+template <typename T>
+void inference(std::unique_ptr<nvinfer1::IExecutionContext, void(*)(nvinfer1::IExecutionContext*)>& context,
+               CudaTensor<T>& input, CudaTensor<T>& output) {
+    // Set the input tensor
+    void* buffers[2];
+    buffers[0] = input.ptr();
+    buffers[1] = output.ptr();
+
+    // Execute the inference
+    context->executeV2(buffers);
+};
 
 #endif //JETSON_INFER_ENGINE_LOADER_H
