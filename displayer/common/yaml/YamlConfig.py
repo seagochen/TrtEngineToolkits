@@ -1,12 +1,9 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 import yaml
 
 
 class YamlConfig:
     def __init__(self, config_file):
-        with open(config_file, 'r') as stream:
+        with open(config_file, 'r', encoding='utf-8') as stream:
             try:
                 self.config = yaml.safe_load(stream)
             except yaml.YAMLError as exc:

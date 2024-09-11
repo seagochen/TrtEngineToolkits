@@ -1,35 +1,85 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-from common.yaml.YamlConfig import YamlConfig
+import cv2
+import numpy as np
 from queue import PriorityQueue
-
+from common.yaml.YamlConfig import YamlConfig
+from common.yolo.YoloInferenceResult import YoloInferenceResults
 from protobufs import video_frame_pb2, inference_result_pb2
 
 
 class MQTTShareCache:
-
     def __init__(self, config: YamlConfig, stakeholder: str):
         self.config = config
         self.stakeholder = stakeholder
         self.cache = PriorityQueue()
+        self.infer_config = config.get_inference_config()
+        self.mqtt_config = config.get_mqtt_config()
 
+    def has_id(self, frame_id):
+        return any(frame_id == item[1].frame_number for item in self.cache.queue)
+
+    def count(self):
+        return self.cache.qsize()
+
+    def get(self, frame_id):
+        return next((item[1] for item in self.cache.queue if item[1].frame_number == frame_id), None)
+
+    def pop_when_ready(self):
+        if self.cache.empty():
+            return None
+
+        # If the length of the cache is bigger than 10, remove the oldest item
+        if self.cache.qsize() > 10:
+            self.cache.get()
+
+        item = self.cache.get()
+        if item[1].is_ready():
+            return item[1]
+        else:
+            self.cache.put(item)
+            return None
 
     def put(self, topic, payload):
-        # Get inference stakeholder
-        infer_config = self.config.get_inference_config()
-        mqtt_config = self.config.get_mqtt_config()
+        if topic == self.mqtt_config["infer_before_topic"]:
+            self._handle_video_frame(payload)
+        elif topic == self.mqtt_config["infer_result_topic"]:
+            self._handle_inference_result(payload)
 
-        if topic == mqtt_config["infer_before_topic"]:
-            video_frame = video_frame_pb2.VideoFrame()
-            video_frame.ParseFromString(payload)
-            if video_frame.publish_by == infer_config['inference_stakeholder']:
+    def _handle_video_frame(self, payload):
+        video_frame = video_frame_pb2.VideoFrame()
+        video_frame.ParseFromString(payload)
 
+        if video_frame.publish_by != self.infer_config['inference_stakeholder']:
+            return
 
-                print(f"Received video frame: {video_frame.frame_number}")
+        cv_image = self._parse_video_frame(video_frame)
+        self._update_cache(video_frame.frame_number, frame=cv_image)
 
-        elif topic == mqtt_config["infer_result_topic"]:
-            inference_result = inference_result_pb2.InferenceResult()
-            inference_result.ParseFromString(payload)
-            if inference_result.publish_by == infer_config['inference_stakeholder']:
-                print(f"Received inference result: {inference_result.frame_number}")
+    def _handle_inference_result(self, payload):
+        inference_result = inference_result_pb2.InferenceResult()
+        inference_result.ParseFromString(payload)
+
+        if inference_result.publish_by != self.infer_config['inference_stakeholder']:
+            return
+
+        self._update_cache(inference_result.frame_number, results=inference_result.results)
+
+    def _parse_video_frame(self, video_frame):
+        np_array = np.frombuffer(video_frame.frame_raw_data, dtype=np.uint8)
+        cv_image = np_array.reshape((video_frame.frame_height, video_frame.frame_width, 3))
+        return cv2.resize(cv_image, (self.infer_config["inference_width"], self.infer_config["inference_height"]))
+
+    def _update_cache(self, frame_number, frame=None, results=None):
+        item = self.get(frame_number)
+        if item is None:
+            item = YoloInferenceResults()
+            item.frame_number = frame_number
+
+        if frame is not None:
+            item.frame_data = frame
+            item.frame_ready = True
+
+        if results is not None:
+            item.results = results
+            item.results_ready = True
+
+        self.cache.put((frame_number, item))
