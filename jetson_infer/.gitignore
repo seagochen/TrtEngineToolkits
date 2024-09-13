@@ -5,6 +5,7 @@ build/
 cmake-build-debug/
 .idea/
 .vscode/
+obsoleted/
 
 # Ignore generated files
 *.engine

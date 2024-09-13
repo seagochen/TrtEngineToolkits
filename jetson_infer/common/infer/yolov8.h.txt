@@ -7,8 +7,7 @@
 
 #include <vector>
 #include <opencv2/opencv.hpp>
-
-#include <tensor_cuda.hpp>
+#include <simple_cuda_toolkits/tensor.hpp>
 #include "common/nlohmann/json.hpp"
 
 
@@ -57,7 +56,7 @@ void preprocess(cv::Mat &image, CudaTensor<float> &output);
  * @param confidence
  * @param model
  */
-void postprocess(const CudaTensor<float> &input, std::vector<YoloResult> &output,
+void postprocess(const Tensor<float> &input, std::vector<YoloResult> &output,
                  float confidence, std::string model="yolov8");
 
 

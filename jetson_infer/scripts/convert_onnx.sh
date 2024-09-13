@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # 检查是否有任何参数传递
-if [ $# -lt 3 ]; then
-    echo "No arguments provided."
-    echo "Usage: sh ./convert_model.sh <input_model.onnx> <output_model.engine> <tensor_name> [precision]"
+if [ $# -lt 4 ]; then
+    echo "No sufficient arguments provided."
+    echo "Usage: sh ./convert_model.sh <input_model.onnx> <output_model.engine> <tensor_name> <dynamic> [precision]"
     echo "Precision options: fp32, fp16, int8, best"
+    echo "Dynamic options: dynamic, static"
     exit 1
 fi
 
@@ -12,11 +13,12 @@ fi
 ONNX_MODEL=$1
 OUTPUT_MODEL=$2
 TENSOR_NAME=$3
-PRECISION=$4
+DYNAMIC=$4
+PRECISION=$5
 
 # 检查trtexec路径
-if [ -f ./tensorrt/bin/trtexec ]; then
-    TRTEXEC=./tensorrt/bin/trtexec
+if [ -f /opt/tensorrt/bin/trtexec ]; then
+    TRTEXEC=/opt/tensorrt/bin/trtexec
 else
     TRTEXEC=/usr/src/tensorrt/bin/trtexec
 fi
@@ -26,15 +28,11 @@ if [ -z "$PRECISION" ]; then
     PRECISION="fp16"  # 默认使用fp16
 fi
 
-# 将tensorrt/lib临时添加到LD_LIBRARY_PATH
-if [ -d "$(pwd)/tensorrt/lib" ]; then
-    export LD_LIBRARY_PATH=$(pwd)/tensorrt/lib:$LD_LIBRARY_PATH
-fi
-
 # 检查输入参数是否正确
-if [ -z "$ONNX_MODEL" ] || [ -z "$OUTPUT_MODEL" ] || [ -z "$TENSOR_NAME" ]; then
-    echo "Usage: sh ./convert_model.sh <input_model.onnx> <output_model.engine> <tensor_name> [precision]"
+if [ -z "$ONNX_MODEL" ] || [ -z "$OUTPUT_MODEL" ] || [ -z "$TENSOR_NAME" ] || [ -z "$DYNAMIC" ]; then
+    echo "Usage: sh ./convert_model.sh <input_model.onnx> <output_model.engine> <tensor_name> <dynamic> [precision]"
     echo "Precision options: fp32, fp16, int8, best"
+    echo "Dynamic options: dynamic, static"
     exit 1
 fi
 
@@ -43,39 +41,44 @@ if [ -f $OUTPUT_MODEL ]; then
     rm $OUTPUT_MODEL
 fi
 
+# 设置动态和静态输入的形状
+if [ "$DYNAMIC" == "dynamic" ]; then
+    MIN_SHAPES="$TENSOR_NAME:1x3x640x640"
+    OPT_SHAPES="$TENSOR_NAME:2x3x640x640"
+    MAX_SHAPES="$TENSOR_NAME:4x3x640x640"
+fi
+
+# 准备精度相关的参数
+PRECISION_FLAG=""
+case $PRECISION in
+    fp32)
+        PRECISION_FLAG=""
+        ;;
+    fp16)
+        PRECISION_FLAG="--fp16"
+        ;;
+    int8)
+        PRECISION_FLAG="--int8"
+        ;;
+    best)
+        PRECISION_FLAG="--best"
+        ;;
+    *)
+        echo "Invalid precision option. Use fp32, fp16, int8, or best."
+        exit 1
+        ;;
+esac
+
 # 如果目标模型不存在，则将源模型转换为目标模型
 if [ ! -f $OUTPUT_MODEL ]; then
     echo "The target model is not found. Converting the source model to the target model."
-    case $PRECISION in
-        fp32)
-            $TRTEXEC --onnx=$ONNX_MODEL --saveEngine=$OUTPUT_MODEL \
-                     --minShapes=$TENSOR_NAME:1x3x640x640 \
-                     --optShapes=$TENSOR_NAME:4x3x640x640,$TENSOR_NAME:8x3x640x640 \
-                     --maxShapes=$TENSOR_NAME:16x3x640x640
-            ;;
-        fp16)
-            $TRTEXEC --onnx=$ONNX_MODEL --saveEngine=$OUTPUT_MODEL --fp16 \
-                     --minShapes=$TENSOR_NAME:1x3x640x640 \
-                     --optShapes=$TENSOR_NAME:4x3x640x640,$TENSOR_NAME:8x3x640x640 \
-                     --maxShapes=$TENSOR_NAME:16x3x640x640
-            ;;
-        int8)
-            $TRTEXEC --onnx=$ONNX_MODEL --saveEngine=$OUTPUT_MODEL --int8 \
-                     --minShapes=$TENSOR_NAME:1x3x640x640 \
-                     --optShapes=$TENSOR_NAME:4x3x640x640,$TENSOR_NAME:8x3x640x640 \
-                     --maxShapes=$TENSOR_NAME:16x3x640x640
-            ;;
-        best)
-            $TRTEXEC --onnx=$ONNX_MODEL --saveEngine=$OUTPUT_MODEL --best \
-                     --minShapes=$TENSOR_NAME:1x3x640x640 \
-                     --optShapes=$TENSOR_NAME:4x3x640x640,$TENSOR_NAME:8x3x640x640 \
-                     --maxShapes=$TENSOR_NAME:16x3x640x640
-            ;;
-        *)
-            echo "Invalid precision option. Use fp32, fp16, int8, or best."
-            exit 1
-            ;;
-    esac
+    
+    if [ "$DYNAMIC" == "dynamic" ]; then
+        $TRTEXEC --onnx=$ONNX_MODEL --saveEngine=$OUTPUT_MODEL $PRECISION_FLAG \
+                 --minShapes=$MIN_SHAPES --optShapes=$OPT_SHAPES --maxShapes=$MAX_SHAPES
+    else
+        $TRTEXEC --onnx=$ONNX_MODEL --saveEngine=$OUTPUT_MODEL $PRECISION_FLAG
+    fi
 
     if [ $? -ne 0 ]; then
         echo "Failed to convert the source model to the target model."

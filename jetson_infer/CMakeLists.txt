@@ -69,7 +69,7 @@ find_package(yaml-cpp REQUIRED)
 find_package(Protobuf REQUIRED)
 
 # 查找所有 common 目录下的子目录源文件
-file(GLOB_RECURSE SOURCE_FILES "common/*.cpp" "yolo/*.cpp" "common/protobufs/*.pb.cc")
+file(GLOB_RECURSE SOURCE_FILES "common/*.cpp" "common/protobufs/*.pb.cc")
 
 # 添加可执行文件
 add_executable(jetson_infer local.cpp ${SOURCE_FILES})

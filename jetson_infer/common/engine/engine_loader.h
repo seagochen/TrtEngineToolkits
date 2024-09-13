@@ -11,8 +11,11 @@
 #include <memory>
 #include <map>
 
-#include "tensor_base.hpp"
-#include "tensor_cuda.hpp"
+#include <simple_cuda_toolkits/tensor.hpp>
+
+// Define unique pointers for ICudaEngine and IExecutionContext objects.
+using ICudaEngineUniquePtr = std::unique_ptr<nvinfer1::ICudaEngine, void(*)(nvinfer1::ICudaEngine*)>;
+using IExecutionContextUniquePtr = std::unique_ptr<nvinfer1::IExecutionContext, void(*)(nvinfer1::IExecutionContext*)>;
 
 /**
  * @brief Loads a serialized TensorRT engine from a file.
@@ -25,8 +28,7 @@
  * @return A unique pointer to the deserialized ICudaEngine, with a custom deleter
  *         to ensure proper cleanup.
  */
-std::unique_ptr<nvinfer1::ICudaEngine, void(*)(nvinfer1::ICudaEngine*)>
-        loadEngineFromFile(const std::string& engineFile);
+ICudaEngineUniquePtr loadEngineFromFile(const std::string& engineFile);
 
 /**
  * @brief Loads a TensorRT engine from an ONNX file.
@@ -34,8 +36,7 @@ std::unique_ptr<nvinfer1::ICudaEngine, void(*)(nvinfer1::ICudaEngine*)>
  * @param onnxFile The path to the ONNX file.
  * @return A unique pointer to the ICudaEngine object.
  */
-std::unique_ptr<nvinfer1::ICudaEngine, void(*)(nvinfer1::ICudaEngine*)>
-        loadEngineFromONNX(const std::string& onnxFile);
+ICudaEngineUniquePtr loadEngineFromONNX(const std::string& onnxFile);
 
 /**
  * @brief Creates an execution context for the given engine.
@@ -47,8 +48,10 @@ std::unique_ptr<nvinfer1::ICudaEngine, void(*)(nvinfer1::ICudaEngine*)>
  * @return A unique pointer to the IExecutionContext object, with a custom deleter
  *         to ensure proper cleanup.
  */
-std::unique_ptr<nvinfer1::IExecutionContext, void(*)(nvinfer1::IExecutionContext*)>
-        createExecutionContext(std::unique_ptr<nvinfer1::ICudaEngine, void(*)(nvinfer1::ICudaEngine*)>& engine);
+IExecutionContextUniquePtr
+createExecutionContext(ICudaEngineUniquePtr& engine,
+                       const std::string& input_name,
+                       const nvinfer1::Dims4& input_shape);
 
 /**
  * @brief Retrieves the names of all tensors in the model.
@@ -60,22 +63,17 @@ std::unique_ptr<nvinfer1::IExecutionContext, void(*)(nvinfer1::IExecutionContext
  * @return A vector of strings containing the names of all tensors in the model.
  */
 std::vector<std::string>
-        getTensorNamesFromModel(std::unique_ptr<nvinfer1::ICudaEngine,
-                                void(*)(nvinfer1::ICudaEngine*)>& engine);
+getTensorNamesFromModel(ICudaEngineUniquePtr& engine);
 
 /**
  * @brief Retrieves the dimensions of a tensor by name.
  *
- * This function queries the engine to retrieve the dimensions of a tensor by name.
- * The function returns a TensorDimensions object containing the dimensions of the tensor.
- *
- * @param engine A pointer to the ICudaEngine object.
- * @param tensor_name The name of the tensor.
- * @return A TensorDimensions object containing the dimensions of the tensor.
+ * @param engine
+ * @param tensor_name
+ * @return
  */
-TensorDimensions
-getTensorDimsByName(std::unique_ptr<nvinfer1::ICudaEngine, void(*)(nvinfer1::ICudaEngine*)>& engine,
-                    const std::string& tensor_name, tensor_type type);
+std::vector<int>
+getTensorDimsByName(ICudaEngineUniquePtr& engine, const std::string& tensor_name);
 
 /**
  * Infer the model with the given input tensor and output tensor.
@@ -83,15 +81,12 @@ getTensorDimsByName(std::unique_ptr<nvinfer1::ICudaEngine, void(*)(nvinfer1::ICu
  * @param input
  * @param output
  */
-void inference(std::unique_ptr<nvinfer1::IExecutionContext, void(*)(nvinfer1::IExecutionContext*)>& context,
-               CudaTensor<float>& input, CudaTensor<float>& output);
+void inference(IExecutionContextUniquePtr& context, Tensor<float>& input, Tensor<float>& output);
 
-/**
- * Load all tensors from the model.
- * @param engine
- * @return
- */
-std::map<std::string, CudaTensor<float>>
-loadTensorsFromModel(std::unique_ptr<nvinfer1::ICudaEngine, void(*)(nvinfer1::ICudaEngine*)>& engine);
+
+// Function to allocate tensors for CUDA computation based on key-value pairs.
+// key: string (tensor name)
+// value: std::vector<int> (tensor dimensions)
+std::map<std::string, Tensor<float>> allocateCudaTensors(const std::map<std::string, std::vector<int>>& tensor_info);
 
 #endif //JETSON_INFER_ENGINE_LOADER_H
