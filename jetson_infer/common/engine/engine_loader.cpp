@@ -167,22 +167,11 @@ std::vector<std::string> getTensorNamesFromModel(ICudaEngineUniquePtr& engine) {
     return tensor_names;
 }
 
-// Get dimensions of a tensor by its name from the engine
-std::vector<int> getTensorDimsByName(ICudaEngineUniquePtr& engine, const std::string& tensor_name) {
-    std::shared_ptr<ICudaEngine> engine_ptr(engine.get(), [](ICudaEngine*){});
-    auto dims = engine_ptr->getTensorShape(tensor_name.c_str());
-
-    // Convert TensorRT dimensions to a vector of integers
-    std::vector<int> dim_sizes(dims.nbDims);
-    for (int i = 0; i < dims.nbDims; ++i) {
-        dim_sizes[i] = dims.d[i];
-    }
-
-    return dim_sizes;
-}
-
 // Create an execution context for inference
-IExecutionContextUniquePtr createExecutionContext(ICudaEngineUniquePtr &engine, const std::string& input_name, const Dims4& input_dims) {
+IExecutionContextUniquePtr createExecutionContext(ICudaEngineUniquePtr &engine, 
+        const std::string& input_name, 
+        const Dims4& input_dims) {
+            
     if (!engine) {
         throw std::runtime_error("Invalid engine pointer.");
     }
@@ -200,6 +189,12 @@ IExecutionContextUniquePtr createExecutionContext(ICudaEngineUniquePtr &engine, 
 
     // Set input tensor shape based on provided dimensions
     context->setInputShape(input_name.c_str(), input_dims);
+
+    // Print out the information 
+    std::cout << "[EngineLoader] VERBOSE: Execution context created successfully." << std::endl;
+    std::cout << "[EngineLoader] VERBOSE: Input tensor shape set to: " 
+        << input_dims.d[0] << "x" << input_dims.d[1] << "x" << input_dims.d[2] << "x" << input_dims.d[3] << std::endl; 
+
     return context;
 }
 
@@ -222,8 +217,13 @@ std::map<std::string, Tensor<float>> allocateCudaTensors(const std::map<std::str
 
     // Iterate over each key-value pair in the map
     for (const auto& [tensor_name, dims] : tensor_info) {
+
         // Allocate a zero-initialized tensor with the provided dimensions
         Tensor<float> tensor = createZerosTensor<TensorType::FLOAT32>(dims);
+
+        // Print out the information
+        std::cout << "[EngineLoader] VERBOSE: Allocated tensor " << tensor_name << " with dimensions: " 
+            << dims[0] << "x" << dims[1] << "x" << dims[2] << "x" << dims[3] << std::endl;
 
         // Add the tensor to the map using its name as the key
         allocated_tensors.emplace(tensor_name, std::move(tensor));

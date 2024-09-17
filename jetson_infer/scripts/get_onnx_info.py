@@ -24,7 +24,7 @@ def print_onnx_io_info(onnx_model_path):
 
 # 检查是否提供了ONNX模型路径
 if len(sys.argv) < 2:
-    print("Usage: python get_onnx_info.py <onnx_model_path>")
+    print("Usage: python get_onnx_info.sh.py <onnx_model_path>")
     sys.exit(1)
 
 # 调用函数并传入ONNX模型的路径

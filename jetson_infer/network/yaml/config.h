@@ -36,7 +36,7 @@ struct YamlConfig {
     bool debug{};
 };
 
-// Load YAML configuration file
+// Load yaml configuration file
 YamlConfig loadYamlConfig(const std::string &config_file);
 
 #endif //JETSON_INFER_CONFIG_H

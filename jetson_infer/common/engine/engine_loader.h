@@ -66,16 +66,6 @@ std::vector<std::string>
 getTensorNamesFromModel(ICudaEngineUniquePtr& engine);
 
 /**
- * @brief Retrieves the dimensions of a tensor by name.
- *
- * @param engine
- * @param tensor_name
- * @return
- */
-std::vector<int>
-getTensorDimsByName(ICudaEngineUniquePtr& engine, const std::string& tensor_name);
-
-/**
  * Infer the model with the given input tensor and output tensor.
  * @param context
  * @param input

@@ -5,10 +5,14 @@ build/
 cmake-build-debug/
 .idea/
 .vscode/
+protobufs/
 obsoleted/
 
 # Ignore generated files
 *.engine
+CMakeLists.txt
+jetson_infer
+jetson_infer_test
 
 # Compiled Object files
 *.o
