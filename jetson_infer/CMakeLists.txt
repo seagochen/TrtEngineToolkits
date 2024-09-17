@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(jetson_infer LANGUAGES CXX)
+project(mqtt_jetson_infer LANGUAGES CXX)
 
 # 设置C++标准
 set(CMAKE_CXX_STANDARD 20)
@@ -72,10 +72,10 @@ find_package(Protobuf REQUIRED)
 file(GLOB_RECURSE SOURCE_FILES "common/*.cpp" "common/protobufs/*.pb.cc")
 
 # 添加可执行文件
-add_executable(jetson_infer local.cpp ${SOURCE_FILES})
+add_executable(mqtt_jetson_infer local.cpp ${SOURCE_FILES})
 
 # 包含目录设置
-target_include_directories(jetson_infer PRIVATE
+target_include_directories(mqtt_jetson_infer PRIVATE
         ${CUDA_INCLUDE_DIRS}
         ${PROJECT_SOURCE_DIR}
         ${SIMPLE_CUDA_TOOLKITS_INC}
@@ -87,7 +87,7 @@ target_include_directories(jetson_infer PRIVATE
 )
 
 # 链接库
-target_link_libraries(jetson_infer PRIVATE
+target_link_libraries(mqtt_jetson_infer PRIVATE
         ${OpenCV_LIBRARIES}
         ${TENSORRT_LIBS}
         ${SIMPLE_CUDA_TOOLKITS_LIB}/libsimplecuda.a

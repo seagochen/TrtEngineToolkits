@@ -1,6 +1,6 @@
 mqtt:
   broker:
-    host: "localhost"                       # MQTTサーバーのアドレス
+    host: "192.168.1.45"                       # MQTTサーバーのアドレス
     port: 1883                              # MQTTサーバーのポート番号
     client_id: "display2"                   # アプリの名称、MQTTを区別できるように、名称は異なるが必要
     infer_before_topic: "infer_yolov8_02"   # 推論必要なデータはここで貰える
