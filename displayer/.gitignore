@@ -3,3 +3,6 @@
 
 # Ignore the Protobuf folder
 protobufs/
+
+# Ignore the Python generated files
+*.pyc

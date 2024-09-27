@@ -14,12 +14,17 @@
  * Parse command line arguments, version 1
  * Usage: app -v video.mp4 -l coco.txt -m models.engine
  */
-inline std::map<std::string, std::string> parse_args_v1(int argc, char *argv[]) {
+inline std::map<std::string, std::string> parse_args_v1(int argc, char *argv[], bool is_pose = false) {
     std::map<std::string, std::string> args;
 
     // Check if no arguments were provided
-    if (argc <= 1) {
+    if (argc <= 1 && !is_pose) {
         std::cout << "Usage: app -v video.mp4 -l coco.txt -m models.engine" << std::endl;
+        exit(0);
+    }
+
+    if (argc <= 1 && is_pose) {
+        std::cout << "Usage: app -v video.mp4 -m models.engine" << std::endl;
         exit(0);
     }
 
@@ -52,12 +57,17 @@ inline std::map<std::string, std::string> parse_args_v1(int argc, char *argv[]) 
  * Parse command line arguments, version 2
  * Usage: app -c config.yaml or app -v video.mp4 -l coco.txt -m models.engine
  */
-inline std::map<std::string, std::string> parse_args_v2(int argc, char *argv[]) {
+inline std::map<std::string, std::string> parse_args_v2(int argc, char *argv[], bool is_pose = false) {
     std::map<std::string, std::string> args;
 
     // Check if no arguments were provided
-    if (argc <= 1) {
+    if (argc <= 1 && !is_pose) {
         std::cout << "Usage: app -c config.yaml or app -v video.mp4 -l coco.txt -m models.engine" << std::endl;
+        exit(0);
+    }
+
+    if (argc <= 1 && is_pose) {
+        std::cout << "Usage: app -c config.yaml or app -v video.mp4 -m models.engine" << std::endl;
         exit(0);
     }
 

@@ -2,7 +2,7 @@ import cv2
 import time
 
 
-class CameraStream:
+class StreamReader:
 
     def __init__(self, url, width, height, fps, max_retries=5, delay=2):
         self.url = url

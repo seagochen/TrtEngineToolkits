@@ -2,7 +2,7 @@
 
 # Check arguments, if no argument is provided, display an error
 if [ $# -ne 1 ]; then
-  echo "Usage: $0 [lib|jetson_adapter|jetson_infer|demo_4channels|demo_yolopose]"
+  echo "Usage: $0 [lib|jetson_adapter|jetson_infer|demo_4channels|demo_autoscaling|demo_yolopose]"
   exit 1
 fi
 
@@ -19,6 +19,12 @@ elif [ "$1" == "jetson_infer" ]; then
 elif [ "$1" == "demo_4channels" ]; then
   echo "Building in test mode (4 channels)..."
   cp cmakes/make.demo_4channels.txt CMakeLists.txt || { echo "Failed to copy make.demo_4channels.txt"; exit 1; }
+elif [ "$1" == "demo_yolopose" ]; then
+  echo "Building in test mode (yolopose)..."
+  cp cmakes/make.demo_yolopose.txt CMakeLists.txt || { echo "Failed to copy make.demo_yolopose.txt"; exit 1; }
+elif [ "$1" == "demo_autoscaling" ]; then
+  echo "Building in test mode (autoscaling)..."
+  cp cmakes/make.demo_autoscaling.txt CMakeLists.txt || { echo "Failed to copy make.demo_autoscaling.txt"; exit 1; }
 else
   echo "Invalid argument: $1"
   exit 1
@@ -47,6 +53,9 @@ elif [ "$1" == "demo_4channels" ]; then
 elif [ "$1" == "demo_yolopose" ]; then
   EXE_FILE="demo_yolopose"
   cp $EXE_FILE ../ || { echo "Failed to copy demo_yolopose"; exit 1; }
+elif [ "$1" == "demo_autoscaling" ]; then
+  EXE_FILE="demo_autoscaling"
+  cp $EXE_FILE ../ || { echo "Failed to copy demo_autoscaling"; exit 1; }
 fi
 
 echo "Compiling has successfully finished."

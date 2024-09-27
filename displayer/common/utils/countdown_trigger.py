@@ -14,16 +14,3 @@ class CountdownTrigger:
         # カウントダウン
         self.countdown_trigger -= 1
         return False
-
-
-
-if __name__ == "__main__":
-
-    trigger = CountdownTrigger(3)
-
-    for i in range(10):
-        if trigger.perform():
-            print("Triggered")
-        else:
-            print("Not Triggered")
-

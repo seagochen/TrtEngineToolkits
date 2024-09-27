@@ -66,7 +66,7 @@ def draw_text_with_background(frame: any,
 if __name__ == "__main__":
 
     # Load the image
-    frame = cv2.imread("images/spectrum.jpg")
+    frame = cv2.imread("/opt/images/spectrum2.png")
     if frame is None:
         print("Error: Image file not found or unable to load.")
         exit()
