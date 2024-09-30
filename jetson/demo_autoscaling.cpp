@@ -50,13 +50,12 @@ std::vector<YoloPose> decode(float* raw, int boxes, int features) {
 
 // Function to automatically resize the output image according to the window size
 void resizeAndDisplay(cv::Mat& image, const std::string& windowName) {
-    // Get the current window size
-    auto windowRect = cv::getWindowImageRect(windowName);
-    int windowWidth = windowRect.width;
-    int windowHeight = windowRect.height;
 
-    std::cout << "Window size: " << windowWidth << "x" << windowHeight << std::endl;
-    
+    // Resize the image to 16:9 aspect ratio
+    auto new_width = 1080;
+    auto new_height = 608;
+    cv::resize(image, image, cv::Size(new_width, new_height));
+
     // Ensure the window size is valid before resizing
     cv::imshow(windowName, image);
 }
@@ -66,6 +65,7 @@ int main(int argc, char** argv) {
     // Initialize OpenCV window
     std::string windowName = "YOLO Pose Detection";
     cv::namedWindow(windowName, cv::WINDOW_NORMAL); // Create a window
+    cv::resizeWindow(windowName, 640, 640); // Resize the window
 
     // Parse command line arguments
     auto args = parse_args_v1(argc, argv, true);

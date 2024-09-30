@@ -17,6 +17,7 @@ jetson_adapter
 jetson_infer
 demo_yolopose
 demo_4channels
+demo_autoscaling
 
 # Compiled Object files
 *.o
