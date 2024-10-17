@@ -1,18 +1,7 @@
+import os
 import cv2
-from common.yolo.simple_structs import Yolo, YoloPose, YoloPoint
-
-# 定义关键点结构
-class KeyPoint:
-    def __init__(self, name, color):
-        self.name = name
-        self.color = color
-
-# 定义骨骼连接结构
-class Skeleton:
-    def __init__(self, srt_kpt_id, dst_kpt_id, color):
-        self.srt_kpt_id = srt_kpt_id
-        self.dst_kpt_id = dst_kpt_id
-        self.color = color
+from common.yolo.simple_structs import Yolo, YoloPose
+from common.utils.load_schema import KeyPoint, Skeleton
 
 # 定义关键点和骨骼映射
 kpt_color_map = {
@@ -69,11 +58,22 @@ bbox_colors = [
 ]
 
 
-def draw_skeletons(image, results: str, different_bbox=False, show_pts=True, show_names=True):
-    yolo_pose_results = YoloPose.from_json(results)
-    for idx, pose in enumerate(yolo_pose_results):
+def load_external_schema(schema_file: str):
 
-        # Draw the keypoints
+    from common.utils.load_schema import load_schema_from_json
+
+    # Check if the schema file exists
+    if not os.path.isfile(schema_file):
+        raise FileNotFoundError("The schema file does not exist.")
+
+    # Update the global variables    
+    global kpt_color_map, skeleton_map, bbox_colors
+    kpt_color_map, skeleton_map, bbox_colors = load_schema_from_json(schema_file)
+
+
+def draw_skeletons(image, results, different_bbox=False, show_pts=True, show_names=True):
+    for idx, pose in enumerate(results):
+        # Draw the key points
         if show_pts:
             for i, pt in enumerate(pose.pts):
                 if pt.conf > 0.2 and i in kpt_color_map:
@@ -81,21 +81,25 @@ def draw_skeletons(image, results: str, different_bbox=False, show_pts=True, sho
                     cv2.circle(image, (pt.x, pt.y), 3, kp.color, -1)
 
                     if show_names:
-                        cv2.putText(image, kp.name, (pt.x, pt.y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, kp.color, 1)
+                        cv2.putText(image, kp.name, (pt.x, pt.y - 5), cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.5, kp.color, 1)
 
         # Draw the skeleton
         for bone in skeleton_map:
-            if pose.pts[bone.srt_kpt_id].conf > 0.2 and pose.pts[bone.dst_kpt_id].conf > 0.2:
-                cv2.line(image,
-                         (pose.pts[bone.srt_kpt_id].x, pose.pts[bone.srt_kpt_id].y),
-                         (pose.pts[bone.dst_kpt_id].x, pose.pts[bone.dst_kpt_id].y),
-                         bone.color, 2)
+            # Easy debug
+            srt_kp = pose.pts[bone.srt_kpt_id]
+            dst_kp = pose.pts[bone.dst_kpt_id]
+
+            if srt_kp.conf > 0.2 and dst_kp.conf > 0.2 and \
+                srt_kp.x > 0 and srt_kp.y > 0 and \
+                    dst_kp.x > 0 and dst_kp.y > 0:
+                cv2.line(image, (srt_kp.x, srt_kp.y), (dst_kp.x, dst_kp.y), bone.color, 2)
                 
         # Determine the color of the bounding box
         if different_bbox:
             box_color = bbox_colors[idx % len(bbox_colors)]
         else:
-            box_color = (255, 255, 255)
+            box_color = (255, 0, 0)
 
         # Draw the bounding box
         lx, ly, rx, ry = pose.lx, pose.ly, pose.rx, pose.ry
@@ -116,9 +120,8 @@ def draw_skeletons(image, results: str, different_bbox=False, show_pts=True, sho
     return image
 
 
-def draw_boxes_with_labels(image, results: str, labels: list):
-    yolo_results = Yolo.from_json(results)
-    for yolo in yolo_results:
+def draw_boxes_with_labels(image, results, labels: list):
+    for yolo in results:
         lx, ly, rx, ry, cls, conf = yolo.lx, yolo.ly, yolo.rx, yolo.ry, yolo.cls, yolo.conf
 
         # Select color based on class

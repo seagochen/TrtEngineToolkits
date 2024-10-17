@@ -2,10 +2,8 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-def calculate_average_color(image, bbox):
-    """Calculate the average color within a bounding box."""
-    cropped_image = image[bbox[1]:bbox[1] + bbox[3], bbox[0]:bbox[0] + bbox[2]]
-    return np.average(np.average(cropped_image, axis=0), axis=0)
+from common.painter.asc_text import calculate_average_color
+
 
 def decide_text_color(average_color):
     """Decide whether to use black or white text based on the average color."""

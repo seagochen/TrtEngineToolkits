@@ -9,6 +9,7 @@ GREEN = "\033[32m"
 YELLOW = "\033[33m"
 CYAN = "\033[36m"
 GRAY = "\033[90m"
+WHITE = "\033[97m"
 
 # 日志级别的颜色映射
 LOG_LEVEL_COLORS = {
@@ -17,19 +18,32 @@ LOG_LEVEL_COLORS = {
     "WARNING": YELLOW,
     "ERROR": RED,
     "DEBUG": GRAY,
+    "CRITICAL": WHITE
 }
 
 # 自定义日志级别 VERBOSE
 VERBOSE_LEVEL = 15
 logging.addLevelName(VERBOSE_LEVEL, "VERBOSE")
 
+
 class Logger:
-    def __init__(self):
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        # 通过new 通过 __new__ 方法实现了单例模式，确保无论在哪里调用 Logger，都返回同一个实例。
+        # __new__ 方法： __new__ 是创建实例的一个特殊方法，它会在 __init__ 方法之前执行。
+        # 通过重写 __new__，我们可以控制实例的创建流程，确保只创建一次实例。
+
+        if not cls._instance:
+            cls._instance = super(Logger, cls).__new__(cls, *args, **kwargs)
+            cls._instance._initialize()
+        return cls._instance
+
+    def _initialize(self):
         # 配置基本的日志记录器
         self.logger = logging.getLogger("Logger")
         self.logger.setLevel(logging.DEBUG)  # 设置最低日志级别
 
-        # Check if the logger already has handlers to prevent duplicate logging
         if not self.logger.hasHandlers():
             handler = logging.StreamHandler(sys.stdout)
             handler.setFormatter(self.CustomFormatter())
@@ -39,17 +53,16 @@ class Logger:
         def format(self, record):
             log_color = LOG_LEVEL_COLORS.get(record.levelname, RESET)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            level = record.levelname  # 使用日志级别名称替代 Logger
+            level = record.levelname
 
-            # 格式化日志消息
-            formatted_message = f"{log_color}[{level}] {record.levelname} {timestamp}: {record.msg}{RESET}"
+            formatted_message = f"{log_color}[{level}] {record.levelname} <{timestamp}> {record.msg}{RESET}"
             return formatted_message
 
     def log(self, level, module, message, topic=None):
-        log_message = f"{module}"
+        log_message = f"[{module}]"
         if topic:
             log_message += f"/{topic}"
-        log_message += f": {message}"
+        log_message += f" - {message}"
 
         if level == "VERBOSE":
             self.logger.log(VERBOSE_LEVEL, log_message)
@@ -61,8 +74,9 @@ class Logger:
             self.logger.error(log_message)
         elif level == "DEBUG":
             self.logger.debug(log_message)
+        elif level == "CRITICAL":
+            self.logger.critical(log_message)
 
-    # 宏的 Python 实现等效
     def verbose(self, module, message):
         self.log("VERBOSE", module, message)
 
@@ -78,15 +92,17 @@ class Logger:
     def debug(self, module, message):
         self.log("DEBUG", module, message)
 
-# 使用示例
+    def critical(self, module, message):
+        self.log("CRITICAL", module, message)
+
+
+# 示例用法
 if __name__ == "__main__":
     logger = Logger()
 
     logger.verbose("ModuleA", "This is a verbose message.")
     logger.info("ModuleA", "This is an info message.")
-    logger.warning("ModuleA", "This is a warning message.")
-    logger.error("ModuleA", "This is an error message.")
-    logger.debug("ModuleA", "This is a debug message.")
-
-    # 带 topic 的日志
-    logger.log("INFO", "ModuleB", "This is a message with topic", topic="Topic1")
+    logger.critical("ModelB", "This is a critical message.")
+    logger.warning("ModuleB", "This is a warning message.")
+    logger.error("ModuleC", "This is an error message.")
+    logger.debug("ModuleC", "This is a debug message.")
