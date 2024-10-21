@@ -27,5 +27,12 @@ case $mode in
     ;;
 esac
 
-echo "電源モードが設定されました。システムを再起動します..."
-sudo reboot
+# System reboot is required for the changes to take effect
+echo "変更を有効にするためにシステムを再起動してください。"
+read -p "再起動しますか？ (y/n): " reboot
+
+if [[ "$reboot" == "y" ]]; then
+    sudo reboot
+else
+    echo "再起動をキャンセルしました。"
+fi
