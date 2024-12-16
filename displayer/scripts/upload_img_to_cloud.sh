@@ -1,71 +1,84 @@
 #!/bin/bash
 
+# 设置错误处理：脚本在遇到错误时会立即退出
+set -e
+
+# 函数：输出错误信息并退出
+error_exit() {
+    echo "Error: $1" >&2
+    exit 1
+}
+
 # 检查参数数量是否正确
 if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <device_id> <detect_code> <local_img_file>"
+    echo "用法: $0 <device_id> <detect_code> <local_img_file>"
     exit 1
 fi
+
+# 获取参数并确保正确引用
+DEVICE_ID="$1"
+DETECT_CODE="$2"
+LOCAL_FILENAME="$3"
 
 # 检查文件是否存在
-if [ ! -f $3 ]; then
-    echo "File not found: $3"
-    exit 1
+if [ ! -f "$LOCAL_FILENAME" ]; then
+    error_exit "未找到文件: $LOCAL_FILENAME"
 fi
 
-# 获取参数
-DEVICE_ID=$1
-DETECT_CODE=$2
-LOCAL_FILENAME=$3
-
 # 自动生成远程文件名
-REMOTE_FILENAME=$(basename $LOCAL_FILENAME)
+REMOTE_FILENAME=$(basename "$LOCAL_FILENAME")
 
-# 连接参数
+# 连接参数（建议将敏感信息存储在环境变量中）
 HOSTNAME="ee-iothub-001.azure-devices.net"
 SHARED_ACCESS_KEY="Cxw7v1hcnYYlSzrHXRs07Ppe1LcdP5p8yAIoTL7pcCM="
 DETECT_TIME=$(date +"%Y-%m-%d %H:%M:%S")
 
 # 获取 SAS URL
-SAS_URL=$(curl -X POST \
+echo "获取 SAS URL..."
+SAS_URL=$(curl -s -X POST \
   -H "Content-Type: application/json" \
   -d '{"key":"value"}' \
-  "https://azjsfunction006.azurewebsites.net/api/sasurl?deviceid=$DEVICE_ID&filename=$REMOTE_FILENAME")
+  "https://azjsfunction006.azurewebsites.net/api/sasurl?deviceid=${DEVICE_ID}&filename=${REMOTE_FILENAME}") || error_exit "无法获取 SAS URL"
 
-# 输出获取的 SAS URL
 echo "SAS URL: $SAS_URL"
 
 # 上传图片文件到远程服务器
-curl -X PUT \
-  -T $LOCAL_FILENAME \
-  $SAS_URL \
-  -H "x-ms-blob-type: BlockBlob"
+echo "上传文件到远程服务器..."
+curl -s -X PUT \
+  -T "$LOCAL_FILENAME" \
+  "$SAS_URL" \
+  -H "x-ms-blob-type: BlockBlob" || error_exit "文件上传失败"
+
+echo "文件上传成功"
 
 # 创建消息负载
-MSG_TXT="{\"local_camera_id\":\"$DEVICE_ID\",\"detect_time\":\"$DETECT_TIME\",\"detect_code\":\"$DETECT_CODE\",\"detect_imgfile\":\"$REMOTE_FILENAME\"}"
+MSG_TXT=$(cat <<EOF
+{
+  "local_camera_id": "${DEVICE_ID}",
+  "detect_time": "${DETECT_TIME}",
+  "detect_code": "${DETECT_CODE}",
+  "detect_imgfile": "${REMOTE_FILENAME}"
+}
+EOF
+)
 
-# 生成 SAS 令牌（授权）（注意：需要实现安全的 SAS 令牌生成逻辑）
-EXPIRY=$(($(date +%s) + 3600)) # SAS Token 有效期设置为 1 小时
-STRING_TO_SIGN=$(printf "%s\n%s" "$HOSTNAME/devices/$DEVICE_ID" "$EXPIRY" | openssl dgst -sha256 -hmac "$SHARED_ACCESS_KEY" -binary | base64)
+# 生成 SAS 令牌（授权）
+# 注意：此处假设 SAS 令牌的生成逻辑由外部服务处理
+echo "获取 SAS Token..."
+SAS_TOKEN=$(curl -s "https://azjsfunction006.azurewebsites.net/api/index?deviceid=${DEVICE_ID}") || error_exit "无法获取 SAS Token"
 
-# 获取 SAS Token
-SAS_TOKEN=$(curl -s "https://azjsfunction006.azurewebsites.net/api/index?deviceid=$DEVICE_ID")
-
-# 输出 SAS Token
-echo "SAS Token: $SAS_TOKEN"
-
-# 输出消息内容
-echo "Message Payload: $MSG_TXT"
+echo "SAS Token: ${SAS_TOKEN}"
 
 # 发送消息到 IoT Hub
-curl -X POST \
-  "https://$HOSTNAME/devices/$DEVICE_ID/messages/events?api-version=2018-06-30" \
-  -H "Authorization: $SAS_TOKEN" \
+echo "发送消息到 IoT Hub..."
+RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  "https://${HOSTNAME}/devices/${DEVICE_ID}/messages/events?api-version=2018-06-30" \
+  -H "Authorization: ${SAS_TOKEN}" \
   -H "Content-Type: application/json" \
-  -d "$MSG_TXT"
+  -d "${MSG_TXT}")
 
-# 检查发送结果
-if [ $? -eq 0 ]; then
-    echo "Message successfully sent"
+if [ "$RESPONSE" -eq 200 ] || [ "$RESPONSE" -eq 204 ]; then
+    echo "消息发送成功"
 else
-    echo "Failed to send message"
+    error_exit "消息发送失败，HTTP 状态码: $RESPONSE"
 fi
