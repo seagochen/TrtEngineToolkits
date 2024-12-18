@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
                 cap1.release();
             }
 
-            cap1.open(video_path); 
+            cap1.open(video_path);
             continue;
         }
 
@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
                 cap2.release();
             }
 
-            cap2.open(video_path); 
+            cap2.open(video_path);
             continue;
         }
 
@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
                 cap3.release();
             }
 
-            cap3.open(video_path); 
+            cap3.open(video_path);
             continue;
         }
 
@@ -176,7 +176,7 @@ int main(int argc, char *argv[]) {
 
         // Display FPS on the top-right corner of the canvas
         std::string fps_text = "FPS: " + std::to_string(int(counter.getFPS()));
-        drawTextWithBackground(canvas, 
+        drawTextWithBackground(canvas,
                     fps_text, // Text to display
                     cv::Point(650, 50), // Left-top corner of the text
                     0.8, // Font scale

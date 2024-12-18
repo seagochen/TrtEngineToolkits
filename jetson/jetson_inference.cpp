@@ -50,7 +50,7 @@ LockFreeQueue<InferenceData> g_inference_queue(1024);
  * @param config_path The path to the YAML file.
  * @return The model configuration.
  */
-void initializeModel(InferWrapper& infer, const std::string& config_path) {
+void initializeModel(InferYoloWrapper& infer, const std::string& config_path) {
     auto model_config = loadModelConfig(config_path);
     std::map<std::string, std::string> tensor_names = {
         {"input", model_config.input.name},
@@ -197,7 +197,7 @@ bool publishFrameToMQTT(MQTTClient& mqtt, const MQTTConfig& mqtt_config, Inferen
  * @param mqtt The MQTT client object for publishing results
  * @param mqtt_config The MQTT configuration for publishing results
  */
-void processInferenceQueue(InferWrapper& infer, const ModelConfig& model_config, MQTTClient& mqtt, const MQTTConfig& mqtt_config) {
+void processInferenceQueue(InferYoloWrapper& infer, const ModelConfig& model_config, MQTTClient& mqtt, const MQTTConfig& mqtt_config) {
     while (!stop_processing) {
         std::unique_lock<std::mutex> lock(queue_mutex);
         data_ready.wait(lock, [] { return g_inference_queue.size() > 0 || stop_processing; });
@@ -271,7 +271,7 @@ int main(int argc, char* argv[]) {
         ModelConfig model_config = loadModelConfig(yaml_path);
 
         // 创建推理包装器对象
-        InferWrapper infer;
+        InferYoloWrapper infer;
         initializeModel(infer, yaml_path);  // 传递 YAML 配置路径
 
         MQTTClient mqtt(mqtt_config.broker.host, mqtt_config.broker.port, mqtt_config.hidden.id);

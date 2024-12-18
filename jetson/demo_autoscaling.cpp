@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
 
     // Load the TensorRT engine from the serialized engine file
     auto model_path = args.find("model") != args.end() ? args["model"] : MODEL_PATH;
-    InferWrapper infer(model_path,
+    InferYoloWrapper infer(model_path,
     {
         {"input", "images"},
         {"output", "output0"}

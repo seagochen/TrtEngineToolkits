@@ -33,7 +33,7 @@ std::vector<YoloPose> decode(float* raw, int boxes, int features) {
 
             for (int j = 0; j < 17; j++) { // YOLO-POSE can detect 17 pts
                 YoloPoint pt;
-                
+
                 pt.x = raw[i * features + 5 + j * 3 + 0];
                 pt.y = raw[i * features + 5 + j * 3 + 1];
                 pt.conf = raw[i * features + 5 + j * 3 + 2];
