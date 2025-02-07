@@ -9,8 +9,8 @@
 #include <simple_cuda_toolkits/matrix/matrix.h>
 #include <simple_cuda_toolkits/tensor_utils.hpp>
 
-#include "common/utils/logger.h"
-#include "common/models/infer_yolov8_pose.h"
+#include "serverlet/utils/logger.h"
+#include "serverlet/models/infer_yolov8_pose.h"
 
 #define DEBUG 0
 

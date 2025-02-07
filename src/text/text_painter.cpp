@@ -1,4 +1,4 @@
-#include "text_painter.h"
+#include "serverlet/text/text_painter.h"
 
 // 计算图像中某个区域的平均颜色
 cv::Scalar calculateAverageColor(const cv::Mat &image, const cv::Rect &bbox) {

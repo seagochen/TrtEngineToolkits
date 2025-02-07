@@ -1,12 +1,13 @@
 //
 // Created by orlando on 9/24/24.
 //
+
 #include <map>
 #include <vector>
 #include <string>
 
-#include "yolo_def.h"
-#include "yolo_visualization.h"
+#include "serverlet/models/yolo/yolo_def.h"
+#include "serverlet/models/yolo/yolo_visualization.h"
 
 
 // 定义关键点结构

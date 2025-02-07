@@ -10,9 +10,9 @@
 #include <simple_cuda_toolkits/matrix/matrix.h>
 #include <simple_cuda_toolkits/tensor_utils.hpp>
 
-#include "common/utils/logger.h"
-#include "common/utils/load_labels.h"
-#include "common/models/infer_yolov8_obj.h"
+#include "serverlet/utils/logger.h"
+#include "serverlet/utils/load_labels.h"
+#include "serverlet/models/infer_yolov8_obj.h"
 
 #define DEBUG 0
 

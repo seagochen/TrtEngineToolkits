@@ -66,14 +66,14 @@ add_compile_options(-fvisibility=default)
 # 使用 CONFIGURE_DEPENDS 使 CMake 在源文件改变时能自动重新生成构建系统
 file(GLOB_RECURSE COMMON_SOURCE_FILES
     CONFIGURE_DEPENDS
-    "${PROJECT_SOURCE_DIR}/common/*.cpp"
+    "${PROJECT_SOURCE_DIR}/src/*.cpp"
 )
 
 # 1) jetson_test 的源文件（额外包含 jetson_test.cpp 与 jetson_apis.cpp）
 set(JETSON_TEST_SOURCE_FILES
     ${COMMON_SOURCE_FILES}
-    "${PROJECT_SOURCE_DIR}/jetson_test.cpp"
     "${PROJECT_SOURCE_DIR}/jetson_apis.cpp"
+    "${PROJECT_SOURCE_DIR}/jetson_test.cpp"
 )
 
 # 2) jetson_apis 的源文件（额外包含 jetson_apis.cpp）
@@ -113,7 +113,7 @@ target_include_directories(jetson_shared PRIVATE
     ${SIMPLE_CUDA_TOOLKITS_INC}
     ${TENSORRT_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
-    ${PROJECT_SOURCE_DIR}
+    "${PROJECT_SOURCE_DIR}/include"
 )
 
 target_link_libraries(jetson_shared PRIVATE
@@ -135,7 +135,7 @@ target_include_directories(jetson_static PRIVATE
     ${SIMPLE_CUDA_TOOLKITS_INC}
     ${TENSORRT_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
-    ${PROJECT_SOURCE_DIR}
+    "${PROJECT_SOURCE_DIR}/include"
 )
 
 target_link_libraries(jetson_static PRIVATE

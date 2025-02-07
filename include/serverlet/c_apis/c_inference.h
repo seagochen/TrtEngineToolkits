@@ -5,8 +5,8 @@
 #ifndef C_INFERENCE_H
 #define C_INFERENCE_H
 
-#include "include/c_vit_infer.h"
-#include "include/c_yolo_infer.h"
+#include "serverlet/c_apis/c_vit_infer.h"
+#include "serverlet/c_apis/c_yolo_infer.h"
 
 #ifdef __cplusplus
 extern "C" {

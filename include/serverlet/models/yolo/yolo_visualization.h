@@ -7,7 +7,7 @@
 
 #include <opencv2/opencv.hpp>
 
-#include "yolo_def.h"
+#include "serverlet/models/yolo/yolo_def.h"
 
 // 使用这些映射来绘制关键点和骨骼
 void drawSkeletons(cv::Mat& image, const std::vector<YoloPose>& poses, bool showPts=true, bool showNames=true);

@@ -6,7 +6,6 @@
 #define IMAGE_ADJUST_HPP
 
 #include <opencv2/opencv.hpp>
-#include <iostream>
 #include <stdexcept>
 #include <cmath>
 

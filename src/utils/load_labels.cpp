@@ -5,9 +5,9 @@
 #include <iostream>
 #include <fstream>
 
-#include "common/nlohmann/json.hpp"
-#include "common/utils/logger.h"
-#include "common/utils/load_labels.h"
+#include "serverlet/nlohmann/json.hpp"
+#include "serverlet/utils/logger.h"
+#include "serverlet/utils/load_labels.h"
 
 // 使用 nlohmann::json 命名空间
 using json = nlohmann::json;

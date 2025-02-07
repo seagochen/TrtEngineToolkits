@@ -1,6 +1,6 @@
-#include "common/models/engine/trt_engine.h"
-#include "common/models/infer_model_base.h"
-#include "common/utils/logger.h"
+#include "serverlet/models/trt_engine.h"
+#include "serverlet/models/infer_model_base.h"
+#include "serverlet/utils/logger.h"
 
 #include "simple_cuda_toolkits/tensor.hpp"
 #include "simple_cuda_toolkits/tensor_utils.hpp"

@@ -14,7 +14,7 @@
 // Load labels from a txt
 std::vector<std::string> loadLabelsFromTxt(const std::string& filePath);
 
-// Load labels from a json
-std::map<int, std::string> loadLabelsFromJson(const std::string& filePath);
+// // Load labels from a json
+// std::map<int, std::string> loadLabelsFromJson(const std::string& filePath);
 
 #endif //LOAD_LABELS_H

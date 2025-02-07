@@ -7,9 +7,9 @@
 #include <simple_cuda_toolkits/tsutils/permute_3D.h>
 #include <simple_cuda_toolkits/tensor_utils.hpp>
 
-#include "common/utils/logger.h"
-#include "common/utils/load_labels.h"
-#include "common/models/infer_google_vit.h"
+#include "serverlet/utils/logger.h"
+#include "serverlet/utils/load_labels.h"
+#include "serverlet/models/infer_google_vit.h"
 
 
 #define DEBUG 0
@@ -148,7 +148,7 @@ std::vector<std::tuple<int, float>> InferGoogleVit::decode(const std::vector<flo
 std::vector<std::string> InferGoogleVit::convertToLabels(const std::vector<std::tuple<int, float>>& vec_data,
                                                               const std::string& label_path) {
     // Load the labels from the json file
-    auto vec_labels = loadLabelsFromJson(label_path);
+    auto vec_labels = loadLabelsFromTxt(label_path);
 
     // Convert the indices to labels
     std::vector<std::string> vec_results;

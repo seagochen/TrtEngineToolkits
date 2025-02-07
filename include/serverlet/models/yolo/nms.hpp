@@ -3,9 +3,8 @@
 
 #include <vector>
 #include <algorithm>
-#include <cmath>
 
-#include "common/yolo/yolo_def.h"
+#include "serverlet/models/yolo/yolo_def.h"
 
 
 // 快速计算IoU
@@ -27,7 +26,7 @@ float IoU(const T& a, const T& b) {
 
 
 // NMS 核心函数
-std::vector<Yolo> NMS(const std::vector<Yolo>& boxes, float iouThreshold) {
+inline std::vector<Yolo> NMS(const std::vector<Yolo>& boxes, float iouThreshold) {
     // 1. 根据置信度排序
     std::vector<Yolo> sortedBoxes = boxes;
     std::sort(sortedBoxes.begin(), sortedBoxes.end(), [](const Yolo& a, const Yolo& b) {
@@ -56,7 +55,7 @@ std::vector<Yolo> NMS(const std::vector<Yolo>& boxes, float iouThreshold) {
 }
 
 // 对于 YoloPose 的 NMS
-std::vector<YoloPose> NMS(const std::vector<YoloPose>& poses, float iouThreshold) {
+inline std::vector<YoloPose> NMS(const std::vector<YoloPose>& poses, float iouThreshold) {
     // 1. 根据置信度排序
     std::vector<YoloPose> sortedPoses = poses;
     std::sort(sortedPoses.begin(), sortedPoses.end(), [](const YoloPose& a, const YoloPose& b) {

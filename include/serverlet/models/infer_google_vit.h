@@ -5,7 +5,7 @@
 #ifndef INFER_HUMAN_ACTION_VIT_H
 #define INFER_HUMAN_ACTION_VIT_H
 
-#include "common/models/infer_model_base.h"
+#include "serverlet/models/infer_model_base.h"
 
 #include <opencv2/opencv.hpp>
 

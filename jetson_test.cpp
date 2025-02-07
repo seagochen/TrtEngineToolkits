@@ -1,9 +1,9 @@
 #include <opencv2/opencv.hpp>
 #include <iostream>
 
-#include "include/c_inference.h"
-#include "include/c_yolo_infer.h"
-#include "include/c_vit_infer.h"
+#include "serverlet/c_apis/c_inference.h"
+#include "serverlet/c_apis/c_yolo_infer.h"
+#include "serverlet/models/infer_yolov8_obj.h"
 
 
 int yolov8_test(const std::string& model_path) {
@@ -110,7 +110,7 @@ int yolov8_pose_test(const std::string& model_path) {
 }
 
 
-#include "common/models/infer_yolov8_obj.h"
+
 
 int load_model_test(const std::string& model_path) {
 

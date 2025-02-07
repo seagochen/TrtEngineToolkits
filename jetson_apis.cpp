@@ -1,13 +1,13 @@
-#include "include/c_inference.h"
-#include "include/c_vit_infer.h"
-#include "include/c_yolo_infer.h"
+#include "serverlet/c_apis/c_inference.h"
+#include "serverlet/c_apis/c_vit_infer.h"
+#include "serverlet/c_apis/c_yolo_infer.h"
 
-#include "common/models/infer_yolov8_obj.h"
-#include "common/models/infer_yolov8_pose.h"
-#include "common/models/infer_google_vit.h"
+#include "serverlet/models/infer_yolov8_obj.h"
+#include "serverlet/models/infer_yolov8_pose.h"
+#include "serverlet/models/infer_google_vit.h"
+#include "serverlet/models/yolo/nms.hpp"
 
-#include "common/utils/logger.h"
-#include "common/yolo/nms.hpp"
+#include "serverlet/utils/logger.h"
 
 #include <opencv2/opencv.hpp>
 

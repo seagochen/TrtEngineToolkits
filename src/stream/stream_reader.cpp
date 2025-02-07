@@ -2,11 +2,10 @@
 // Created by orlando on 9/25/24.
 //
 
-#include "stream_reader.h"
-#include <iostream>
+#include "serverlet/stream/stream_reader.h"
 #include <thread>
 
-#include "common/utils/logger.h"
+#include "serverlet/utils/logger.h"
 
 
 StreamReader::StreamReader(const std::string& url, int width, int height, int fps, int max_retries, int delay)
