@@ -41,61 +41,11 @@ std::vector<std::tuple<int, float>> results_of_vit;
 
 extern "C" {
 
-    // bool c_model_init(const char* cstr_modelPath, const char* cstr_modelType)
-    // {
-
-    //     // Convert char* to string
-    //     std::string str_modelPath(cstr_modelPath);
-    //     std::string str_modelType(cstr_modelType);
-
-    //     // Create a new model object based on the model type
-    //     if (str_modelType == "yolov8n") {
-    //         std::vector input_params = {4, 3, 640, 640};
-    //         std::vector output_params = {4, 84, 8400};
-
-    //         vptr_model = c_yolo_init(cstr_modelPath,
-    //             "images", 4, input_params.data(),
-    //             "output0", 3, output_params.data());
-    //     }
-    //     else if (str_modelType == "yolov8n-pose") {
-    //         std::vector input_params = {4, 3, 640, 640};
-    //         std::vector output_params = {4, 56, 8400};
-
-    //         vptr_model = c_pose_init(cstr_modelPath,
-    //             "images", 4, input_params.data(),
-    //             "output0", 3, output_params.data());
-    //     }
-    //     else if (str_modelType == "efficient-vit") {
-    //         std::vector input_params = {4, 3, 224, 224};
-    //         std::vector output_params = {4, 4};
-
-    //         vptr_model = c_vit_init(cstr_modelPath,
-    //             "input", 4, input_params.data(),
-    //             "output", 2, output_params.data());
-    //     }
-    //     else
-    //     {
-    //         // Display the message
-    //         LOG_ERROR("C_API::Error", "Model type not supported");
-    //         return false;
-    //     }
-
-    //     // Set the model name
-    //     str_modelName = str_modelType;
-
-    //     return true;
-    // }
-
-
     void* c_yolo_init(const char *model_path) {
 
         // Avoid shadowing by renaming the local variable
-        // std::vector<int> local_input_params = {input_params[0], input_params[1], input_params[2], input_params[3]};
-        // std::vector<int> local_output_params = {output_params[0], output_params[1], output_params[2]};
-
-        // Avoid shadowing by renaming the local variable
-        std::vector local_input_params = {4, 3, 640, 640};
-        std::vector local_output_params = {4, 84, 8400};
+        std::vector local_input_params = {8, 3, 640, 640};
+        std::vector local_output_params = {8, 84, 8400};
 
         // Create a new InferYoloV8Obj object and assign it to vptr_model
         vptr_model = new InferYoloV8Obj(model_path,
@@ -114,12 +64,8 @@ extern "C" {
     void* c_pose_init(const char *model_path) {
 
         // Avoid shadowing by renaming the local variable
-        // std::vector<int> local_input_params = {input_params[0], input_params[1], input_params[2], input_params[3]};
-        // std::vector<int> local_output_params = {output_params[0], output_params[1], output_params[2]};
-        
-        // Avoid shadowing by renaming the local variable
-        std::vector local_input_params = {4, 3, 640, 640};
-        std::vector local_output_params = {4, 56, 8400};
+        std::vector local_input_params = {8, 3, 640, 640};
+        std::vector local_output_params = {8, 56, 8400};
 
         // Create a new InferYoloV8Pose object and assign it to vptr_model
         vptr_model = new InferYoloV8Pose(model_path,
@@ -136,10 +82,6 @@ extern "C" {
 
 
     void* c_vit_init(const char *model_path) {
-
-        // Avoid shadowing by renaming the local variable
-        // std::vector<int> local_input_params = {input_params[0], input_params[1], input_params[2], input_params[3]};
-        // std::vector<int> local_output_params = {output_params[0], output_params[1]};
 
         // Avoid shadowing by renaming the local variable
         std::vector local_input_params = {4, 3, 224, 224};
