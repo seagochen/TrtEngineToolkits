@@ -3,9 +3,9 @@
 //
 
 #include <vector>
-#include "serverlet/models/c_yolo_apis.h"
-#include "serverlet/models/yolo/infer_yolo_obj.h"
-#include "serverlet/models/yolo/infer_yolo_pose.h"
+#include "serverlet/c_yolo_v8_apis.h"
+#include "serverlet/models/yolo/infer_yolo_v8_obj.h"
+#include "serverlet/models/yolo/infer_yolo_v8_pose.h"
 
 #include "serverlet/utils/logger.h"
 #include "serverlet/models/yolo/nms.hpp"

@@ -2,8 +2,8 @@
 // Created by user on 3/21/25.
 //
 
-#ifndef COMBINEDPROJECT_C_YOLO_APIS_H
-#define COMBINEDPROJECT_C_YOLO_APIS_H
+#ifndef COMBINEDPROJECT_C_YOLO_V8_APIS_H
+#define COMBINEDPROJECT_C_YOLO_V8_APIS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,4 +60,4 @@ extern "C" {
 };
 #endif
 
-#endif //COMBINEDPROJECT_C_YOLO_APIS_H
+#endif //COMBINEDPROJECT_C_YOLO_V8_APIS_H
