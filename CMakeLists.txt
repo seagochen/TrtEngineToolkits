@@ -65,8 +65,45 @@ add_compile_options(-fvisibility=default)
 # ------------------ 源文件收集 ------------------
 # 使用 CONFIGURE_DEPENDS 使 CMake 在源文件改变时能自动重新生成构建系统
 file(GLOB_RECURSE COMMON_SOURCE_FILES
-    CONFIGURE_DEPENDS
-    "${PROJECT_SOURCE_DIR}/src/*.cpp"
+        CONFIGURE_DEPENDS
+        "${PROJECT_SOURCE_DIR}/src/*.cpp"
+)
+
+# ------------------ 生成目标：c_api_test (可执行文件) ------------------
+# 明确指定 c_api_test 的源文件
+set(C_TEST_API_SOURCE_FILES
+        "${PROJECT_SOURCE_DIR}/c_api_test.cpp"
+        "${PROJECT_SOURCE_DIR}/src/c_yolo_v8_apis.cpp"
+        "${PROJECT_SOURCE_DIR}/src/models/infer_model.cpp"
+        "${PROJECT_SOURCE_DIR}/src/models/yolo/infer_yolo_v8_obj.cpp"
+        "${PROJECT_SOURCE_DIR}/src/models/yolo/infer_yolo_v8_pose.cpp"
+        "${PROJECT_SOURCE_DIR}/src/trt_engine/trt_engine.cpp"
+        "${PROJECT_SOURCE_DIR}/src/utils/logger.cpp"
+)
+
+# 定义可执行文件目标
+add_executable(c_api_test ${C_TEST_API_SOURCE_FILES})
+
+# 设置目标属性
+set_target_properties(c_api_test PROPERTIES
+        OUTPUT_NAME "c_api_test"
+)
+
+# 添加包含目录
+target_include_directories(c_api_test PRIVATE
+        ${CUDA_INCLUDE_DIRS}
+        ${SIMPLE_CUDA_TOOLKITS_INC}
+        ${TENSORRT_INCLUDE_DIRS}
+        ${OpenCV_INCLUDE_DIRS}
+        "${PROJECT_SOURCE_DIR}/include"
+)
+
+# 链接所需的库
+target_link_libraries(c_api_test PRIVATE
+        ${CUDA_LIBRARIES}
+        "${SIMPLE_CUDA_TOOLKITS_LIB}/libsimplecuda.a"
+        ${TENSORRT_LIBS}
+        ${OpenCV_LIBRARIES}
 )
 
 # ------------------ 生成目标：jetson_shared (共享库) ------------------

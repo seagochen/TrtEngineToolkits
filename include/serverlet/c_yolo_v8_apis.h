@@ -5,6 +5,11 @@
 #ifndef COMBINEDPROJECT_C_YOLO_V8_APIS_H
 #define COMBINEDPROJECT_C_YOLO_V8_APIS_H
 
+typedef unsigned char byte;
+
+#define LEN_YOLO_ENTITY 6
+#define LEN_POSE_ENTITY 57
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,7 +36,7 @@ extern "C" {
      * @param n_height 高度
      * @return 是否添加成功
     */
-    bool c_yolo_add_image(int n_index, unsigned char* cstr, int n_channels, int n_width, int n_height);
+    bool c_yolo_add_image(int n_index, byte* cstr, int n_channels, int n_width, int n_height);
 
     /**
      * @brief 执行推理
@@ -51,10 +56,9 @@ extern "C" {
     /**
      * @brief 获取yolo8模型的推理结果
      * @param n_itemIndex
-     * @param n_size
      * @return
      */
-    float* c_yolo_get_result(int n_itemIndex, int& n_size);
+    float* c_yolo_get_result(int n_itemIndex);
 
 #ifdef __cplusplus
 };

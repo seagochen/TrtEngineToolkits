@@ -1,0 +1,114 @@
+import ctypes
+import numpy as np
+import cv2
+from ctypes import c_char_p, c_bool, c_int, c_float, c_ubyte, POINTER, byref
+
+# 加载动态库
+cyolo = ctypes.cdll.LoadLibrary('./cmake-build-release/libjetson.so')  # 或 'cyolo.dll' on Windows
+
+# 函数原型定义
+cyolo.c_yolo_init.argtypes = [c_char_p, c_bool]
+cyolo.c_yolo_release.restype = c_bool
+cyolo.c_yolo_add_image.argtypes = [c_int, POINTER(c_ubyte), c_int, c_int, c_int]
+cyolo.c_yolo_add_image.restype = c_bool
+cyolo.c_yolo_inference.restype = c_bool
+cyolo.c_yolo_available_results.argtypes = [c_int, c_float, c_float]
+cyolo.c_yolo_available_results.restype = c_int
+cyolo.c_yolo_get_result.argtypes = [c_int, POINTER(c_int)]
+cyolo.c_yolo_get_result.restype = POINTER(c_float)
+
+# 定义结果结构体
+# Define the structure for YoloStruct
+class YoloStruct(ctypes.Structure):
+    _fields_ = [
+        ("lx", c_int),
+        ("ly", c_int),
+        ("rx", c_int),
+        ("ry", c_int),
+        ("conf", c_float),
+        ("cls", c_int)
+    ]
+
+
+# Define the structure for YoloPointStruct
+class YoloPointStruct(ctypes.Structure):
+    _fields_ = [
+        ("x", c_int),
+        ("y", c_int),
+        ("conf", c_float)
+    ]
+
+
+# 封装成 Python 类
+class YoloWrapper:
+    def __init__(self, model_path: str, use_pose: bool = False):
+        self.yolo_pose = use_pose
+        cyolo.c_yolo_init(model_path.encode('utf-8'), use_pose)
+
+    def release(self):
+        return cyolo.c_yolo_release()
+
+    def add_image(self, index: int, image: np.ndarray):
+        assert image.flags['C_CONTIGUOUS'], "Image must be C-contiguous"
+        h, w, c = image.shape
+        ptr = image.ctypes.data_as(POINTER(c_ubyte))
+        return cyolo.c_yolo_add_image(index, ptr, c, w, h)
+
+    def inference(self):
+        return cyolo.c_yolo_inference()
+
+    def available_results(self, index: int, cls_thresh: float, nms_thresh: float):
+        return cyolo.c_yolo_available_results(index, cls_thresh, nms_thresh)
+
+    def get_result(self, item_index: int):
+        size = c_int()
+        result_ptr = cyolo.c_yolo_get_result(item_index, byref(size))
+        if not result_ptr:
+            return None
+        result_array = np.ctypeslib.as_array(result_ptr, shape=(size.value,))
+        return result_array.copy()  # copy to detach from C memory
+
+
+def test_load_yolov8(image: np.ndarray):
+
+    # Load the model
+    object_model = YoloWrapper("/opt/models/yolov8n.engine", use_pose=False)
+
+    # Add image to the model
+    object_model.add_image(0, img)
+
+    # Run inference
+    object_model.inference()
+    print("----")
+
+    # Get the number of results
+    count = object_model.available_results(0, 0.5, 0.5)
+    print(f"Number of results: {count}")
+
+    #
+
+    # Release the model
+    object_model.release()
+
+if __name__ == "__main__":
+    # Load an image
+    img = cv2.imread("test.png")
+
+    test_load_yolov8(img)
+
+# Define the models
+# pose_model = YoloWrapper("/opt/models/yolov8n-pose.engine", use_pose=True)
+#
+#
+# model.add_image(0, img)
+#
+# model.inference()
+# count = model.available_results(0, 0.5, 0.45)
+#
+# for i in range(count):
+#     res = model.get_result(i)
+#     print(res)
+#
+# model.release()
+
+

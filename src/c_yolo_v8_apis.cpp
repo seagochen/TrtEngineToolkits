@@ -39,29 +39,20 @@ extern "C" {
     void c_yolo_init(const char *model_path, bool b_use_pose) {
 
         if (b_use_pose) {
-            // Avoid shadowing by renaming the local variable
             std::vector local_input_params = {4, 3, 640, 640};
             std::vector local_output_params = {4, 56, 8400};
-
-            // Create a new InferYoloV8Obj object and assign it to vptr_model
-            vptr_model = new InferYoloV8Obj(model_path,
-                                            "images", local_input_params,
-                                            "output0", local_output_params);
-
-            // Display the message
-            LOG_INFO("C_API::Initialized", "YoloV8 Pose Detection model loaded successfully");
-
-        } else {
-            // Avoid shadowing by renaming the local variable
-            std::vector local_input_params = {4, 3, 640, 640};
-            std::vector local_output_params = {4, 84, 8400};
-
-            // Create a new InferYoloV8Pose object and assign it to vptr_model
+            // 当使用姿态检测时，创建 InferYoloV8Pose 对象
             vptr_model = new InferYoloV8Pose(model_path,
                                              "images", local_input_params,
                                              "output0", local_output_params);
-
-            // Display the message
+            LOG_INFO("C_API::Initialized", "YoloV8 Pose Detection model loaded successfully");
+        } else {
+            std::vector local_input_params = {4, 3, 640, 640};
+            std::vector local_output_params = {4, 84, 8400};
+            // 否则，创建 InferYoloV8Obj 对象
+            vptr_model = new InferYoloV8Obj(model_path,
+                                            "images", local_input_params,
+                                            "output0", local_output_params);
             LOG_INFO("C_API::Initialized", "YoloV8 Object Detection model loaded successfully");
         }
 
@@ -106,7 +97,7 @@ extern "C" {
      * @param n_height 高度
      * @return 是否添加成功
     */
-    bool c_yolo_add_image(int n_index, unsigned char* cstr, int n_channels, int n_width, int n_height) {
+    bool c_yolo_add_image(int n_index, byte* cstr, int n_channels, int n_width, int n_height) {
         // Check if the model is initialized
         if (vptr_model == nullptr)
         {
@@ -132,8 +123,22 @@ extern "C" {
             return false;
         }
 
-        // Add the image to the model
-        static_cast<InferModelBase*>(vptr_model)->preprocess(img, n_index);
+
+        // Get the count of results available
+        if (b_model_pose) {
+            // Convert the pointer to InferYoloV8Pose object
+            auto* model = dynamic_cast<InferYoloV8Pose*>(vptr_model);
+
+            // Preprocess the image
+            model->preprocess(img, n_index);
+
+        } else {
+            // Convert the pointer to InferYoloV8Pose object
+            auto *model = dynamic_cast<InferYoloV8Obj *>(vptr_model);
+
+            // Preprocess the image
+            model->preprocess(img, n_index);
+        }
 
         return true;
     }
@@ -202,10 +207,9 @@ extern "C" {
      * 获取yolo8模型的推理结果
      * @param n_index 索引
      * @param n_itemIdx 结果索引
-     * @param n_size 返回的数据大小
      * @return 返回 n_index 索引的第 n_result 个结果
      */
-    float* c_yolo_get_result(int n_itemIndex, int& n_size) {
+    float* c_yolo_get_result(int n_itemIndex) {
         // Check if the model is initialized
         if (vptr_model == nullptr)
         {
