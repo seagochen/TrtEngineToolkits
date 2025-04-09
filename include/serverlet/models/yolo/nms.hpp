@@ -2,8 +2,8 @@
 // Created by user on 3/21/25.
 //
 
-#ifndef COMBINEDPROJECT_NMS_HPP
-#define COMBINEDPROJECT_NMS_HPP
+#ifndef INFER_NMS_HPP
+#define INFER_NMS_HPP
 
 
 #include <algorithm>
@@ -86,4 +86,4 @@ inline std::vector<YoloPose> NMS(const std::vector<YoloPose>& poses, float iouTh
     return result;
 }
 
-#endif //COMBINEDPROJECT_NMS_HPP
+#endif //INFER_NMS_HPP

@@ -2,8 +2,8 @@
 // Created by vipuser on 25-1-6.
 //
 
-#ifndef INFER_YOLO_V8_OBJ_H
-#define INFER_YOLO_V8_OBJ_H
+#ifndef INFER_YOLO_V8_POSE_H
+#define INFER_YOLO_V8_POSE_H
 
 #include "serverlet/models/infer_model.h"
 #include "yolo_def.h"
@@ -53,4 +53,4 @@ private:
     static std::vector<YoloPose> decode(const std::vector<float>& vec_data, int features, int samples);
 };
 
-#endif //INFER_YOLO_V8_OBJ_H
+#endif //INFER_YOLO_V8_POSE_H

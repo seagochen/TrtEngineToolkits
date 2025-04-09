@@ -2,8 +2,8 @@
 // Created by user on 3/21/25.
 //
 
-#ifndef COMBINEDPROJECT_C_YOLO_V8_APIS_H
-#define COMBINEDPROJECT_C_YOLO_V8_APIS_H
+#ifndef INFER_C_YOLO_V8_APIS_H
+#define INFER_C_YOLO_V8_APIS_H
 
 typedef unsigned char byte;
 
@@ -64,4 +64,4 @@ extern "C" {
 };
 #endif
 
-#endif //COMBINEDPROJECT_C_YOLO_V8_APIS_H
+#endif //INFER_C_YOLO_V8_APIS_H

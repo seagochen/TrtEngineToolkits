@@ -2,8 +2,8 @@
 // Created by user on 3/21/25.
 //
 
-#ifndef COMBINEDPROJECT_LOGGER_H
-#define COMBINEDPROJECT_LOGGER_H
+#ifndef INFER_LOGGER_H
+#define INFER_LOGGER_H
 
 #include <string>
 
@@ -47,4 +47,4 @@ private:
 #define LOG_DEBUG(module, message) Logger::log(DEBUG, module, message)
 #define LOG_DEBUG_TOPIC(module, topic, message) Logger::log(DEBUG, module, topic, message)
 
-#endif //COMBINEDPROJECT_LOGGER_H
+#endif //INFER_LOGGER_H

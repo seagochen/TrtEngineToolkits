@@ -2,8 +2,8 @@
 // Created by vipuser on 24-12-25.
 //
 
-#ifndef TRT_ENGINE_H
-#define TRT_ENGINE_H
+#ifndef INFER_TRT_ENGINE_H
+#define INFER_TRT_ENGINE_H
 
 #include <NvInfer.h>
 #include <NvOnnxParser.h>
@@ -48,4 +48,4 @@ private:
     void cleanup();
 };
 
-#endif //TRT_ENGINE_H
+#endif //INFER_TRT_ENGINE_H

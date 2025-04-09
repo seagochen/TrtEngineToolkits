@@ -2,8 +2,8 @@
 // Created by user on 3/21/25.
 //
 
-#ifndef COMBINEDPROJECT_INFER_YOLO_V8_OBJ_H
-#define COMBINEDPROJECT_INFER_YOLO_V8_OBJ_H
+#ifndef INFER_YOLO_V8_H
+#define INFER_YOLO_V8_H
 
 
 #include <vector>
@@ -53,4 +53,4 @@ private:
     static std::vector<Yolo> decode(const std::vector<float>& vec_data, int features, int samples);
 };
 
-#endif //COMBINEDPROJECT_INFER_YOLO_V8_OBJ_H
+#endif //INFER_YOLO_V8_H

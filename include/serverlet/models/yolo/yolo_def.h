@@ -2,8 +2,8 @@
 // Created by user on 3/21/25.
 //
 
-#ifndef COMBINEDPROJECT_YOLO_DEF_H
-#define COMBINEDPROJECT_YOLO_DEF_H
+#ifndef INFER_YOLO_DEF_H
+#define INFER_YOLO_DEF_H
 
 #include <vector>
 
@@ -24,4 +24,4 @@ struct YoloPose {
     std::vector<YoloPoint> pts;
 };
 
-#endif //COMBINEDPROJECT_YOLO_DEF_H
+#endif //INFER_YOLO_DEF_H
