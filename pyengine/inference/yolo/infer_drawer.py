@@ -29,17 +29,34 @@ class InferenceDrawer:
         """
         Draw bounding box with background text on the provided image copy.
         """
-        cv2.rectangle(image, (bbox_coords[0], bbox_coords[1]),
-                      (bbox_coords[2], bbox_coords[3]), bbox_color, 1)
 
+        # 绘制包裹物体的框
+        cv2.rectangle(image,
+                      (bbox_coords[0], bbox_coords[1]),
+                      (bbox_coords[2], bbox_coords[3]),
+                      bbox_color,
+                      1)
+
+        # 绘制文字
         if text:
-            (text_width, text_height), _ = cv2.getTextSize(text,
-                                                           cv2.FONT_HERSHEY_SIMPLEX,
-                                                           0.5, 1)
-            cv2.rectangle(image, (bbox_coords[0], bbox_coords[1] - text_height - 5),
-                          (bbox_coords[0] + text_width, bbox_coords[1]), bbox_color, -1)
-            cv2.putText(image, text, (bbox_coords[0], bbox_coords[1] - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 1)
+            # 计算文字的大小
+            (text_width, text_height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+
+            # 绘制包含文字的框
+            cv2.rectangle(image,
+                          (bbox_coords[0], bbox_coords[1] - text_height - 5),
+                          (bbox_coords[0] + text_width, bbox_coords[1]),
+                          bbox_color,
+                          -1)
+
+            # 绘制文字
+            cv2.putText(image,
+                        text,
+                        (bbox_coords[0], bbox_coords[1] - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        text_color,
+                        1)
 
 
     def _update_flashing_status(self):
@@ -58,24 +75,25 @@ class InferenceDrawer:
         否则返回预设的普通颜色。
         """
         flash_colors = {
-            "flash_red_white": [(0, 0, 255), (255, 255, 255)],   # 红白闪烁
-            "flash_green_white": [(0, 255, 0), (255, 255, 255)],   # 绿白闪烁
-            "flash_yellow_white": [(0, 255, 255), (255, 255, 255)]  # 黄白闪烁
+            "flash_red_white": [(0, 0, 255), (255, 255, 255)],          # 红白闪烁
+            "flash_green_white": [(0, 255, 0), (255, 255, 255)],        # 绿白闪烁
+            "flash_yellow_white": [(0, 255, 255), (255, 255, 255)],     # 黄白闪烁
+            "flash_blue_white": [(255, 0, 0), (255, 255, 255)]          # 蓝白闪烁
         }
         if bbox_style in flash_colors:
             return flash_colors[bbox_style][self.swap_flashing_flag]  # 使用闪烁颜色
 
         if bbox_style == "chromatic":
             if oid is None:
-                return (255, 255, 255)
+                return [255, 255, 255]
             return self.bbox_colors[oid % len(self.bbox_colors)]
 
         normal_colors = {
             "white": (255, 255, 255),
-            "red": (255, 0, 0),
+            "red": (0, 0, 255),
             "green": (0, 255, 0),
-            "blue": (0, 0, 255),
-            "yellow": (0, 255, 255),
+            "blue": (255, 0, 0),
+            "yellow": (255, 255, 0),
             "gray": (128, 128, 128),
         }
         return normal_colors.get(bbox_style, (255, 255, 255))  # 默认返回白色
@@ -136,7 +154,8 @@ class InferenceDrawer:
                      frame: np.ndarray,
                      results: List[Union[Yolo, YoloSorted]],
                      labels: List[Union[str, int]] = None,
-                     bbox_style: str = "blue") -> np.ndarray:
+                     bbox_style: str = "blue",
+                     show_default=False) -> np.ndarray:
         """
         Draw object bounding boxes on an image copy.
         """
@@ -151,11 +170,22 @@ class InferenceDrawer:
             else:
                 bbox_color = self._get_bbox_color(bbox_style)
 
+            # 获取id值
             id_value = obj.oid if hasattr(obj, "oid") else obj.cls
-            text = f"ID {id_value}: {obj.conf:.2f}"
-            if labels and obj.cls < len(labels):
-                text = f"{labels[obj.cls]}: {obj.conf:.2f} - {id_value}"
 
+            # 决定文字内容：show_default 与 labels 互斥
+            if show_default:
+                text = f"ID {id_value}: {obj.conf:.2f}"
+            else:
+                if labels and isinstance(labels, list):
+                    label_len = len(labels)
+                    text = f"{labels[obj.cls % label_len]}: {obj.conf:.2f} - {id_value}"
+                elif labels and isinstance(labels, str):
+                    text = f"{labels}"
+                else:
+                    text = None
+
+            # 绘制bbox以及文字（如果有）
             self._draw_color_bbox(frame_copy,
                                   text,
                                   (255, 255, 255),
