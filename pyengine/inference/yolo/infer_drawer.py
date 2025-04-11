@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 from pyengine.inference.yolo.data_struct import YoloPose, Yolo, YoloPoseSorted, YoloSorted
-from pyengine.inference.yolo.facial_orientation import FacialVector
+from pyengine.inference.yolo.pose_insight import FacialDirection
 from pyengine.inference.yolo.schema_loader import SchemaLoader
 
 
@@ -197,7 +197,7 @@ class InferenceDrawer:
 
     def draw_facial_orientation_vectors(self,
                                         image: np.ndarray,
-                                        facial_vectors: List[FacialVector],
+                                        facial_vectors: List[FacialDirection],
                                         bbox_style: str = "blue",
                                         thickness=2,
                                         show_dir_name: bool = False) -> np.ndarray:
@@ -208,10 +208,10 @@ class InferenceDrawer:
         default_color = self._get_bbox_color(bbox_style)
 
         for vector in facial_vectors:
-            op_x, op_y  = vector.original()         # 起点坐标
-            module = vector.module()                # 模长
-            vec_x, vec_y = vector.vector()          # 方向向量
-            orientation = vector.direction_desc()   # 朝向类型文字
+            op_x, op_y  = vector.origin             # 起点坐标
+            module = vector.modulus                 # 模长
+            vec_x, vec_y = vector.vector            # 方向向量
+            orientation = vector.direction_desc     # 朝向类型文字
 
             # 绘制面部朝向箭头
             end_point = (int(op_x + vec_x * module), int(op_y + vec_y * module)) # 终点坐标
