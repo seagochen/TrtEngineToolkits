@@ -3,7 +3,7 @@
 //
 
 #include "serverlet/c_yolo_v8_apis.h"
-#include "serverlet/models/infer_model_multi.h"
+#include "serverlet/models/efficient_net/efficient_net.h"
 
 #include <opencv2/opencv.hpp>
 
@@ -58,8 +58,30 @@ int infer_model_multi_test() {
     };
 
     // Load the engine from file
-    InferModelBaseMulti infer("/opt/models/efficientnet_b0_feat_logits_simplified.engine.engine", input_ts, output_ts);
+    EfficientNetForFeatAndClassification efficient_net("/opt/models/efficientnet_b0_feat_logits_simplified.engine", 1);
 
+    // Load the image, and check if it was loaded successfully
+    cv::Mat image1 = cv::imread("/opt/images/0_label.bmp", cv::IMREAD_COLOR);
+    cv::Mat image2 = cv::imread("/opt/images/1_label.bmp", cv::IMREAD_COLOR);
+
+    // Check if the images were loaded successfully
+    if (image1.empty() || image2.empty()) {
+        std::cerr << "Error: Could not load image." << std::endl;
+        return -1;
+    }
+
+    // Preprocess the images
+    efficient_net.preprocess(image1, 0);
+
+    if (!efficient_net.inference()) {
+        std::cerr << "Error: Inference failed." << std::endl;
+        return -1;
+    }
+
+    auto vec = efficient_net.postprocess(0);
+    // for (auto &v : vec) {
+    //     std::cout << v << "\t";
+    // }
 
     return 0;
 }

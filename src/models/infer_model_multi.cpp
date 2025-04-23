@@ -6,6 +6,9 @@
 #include "serverlet/utils/logger.h"
 #include "serverlet/models/infer_model_multi.h"
 #include <cuda_runtime.h>
+#include <fstream>
+
+#define DEBUG 1
 
 InferModelBaseMulti::InferModelBaseMulti(
         const std::string& engine_path,
@@ -123,7 +126,10 @@ void InferModelBaseMulti::copyCpuDataToInputBuffer(
         int batch_idx)
 {
     auto& tensor = g_map_trtTensors.at(tensor_name);
-    auto dims = tensor.getDims();
+    const auto& dims = tensor.getDims();
+    if (dims.empty() || dims[0] <= 0) {
+        throw std::runtime_error("Invalid tensor dimensions for " + tensor_name);
+    }
     size_t total = tensor.elements();
     size_t batch_count = static_cast<size_t>(dims[0]);
     size_t single = total / batch_count;
@@ -132,6 +138,18 @@ void InferModelBaseMulti::copyCpuDataToInputBuffer(
         throw std::runtime_error("Input data size mismatch for " + tensor_name);
     }
     size_t offset = static_cast<size_t>(batch_idx) * single;
+
+#if DEBUG
+    {
+        std::ofstream ofs(tensor_name + "_input_batch" + std::to_string(batch_idx) + ".csv");
+        for (size_t i = 0; i < single; ++i) {
+            ofs << input_data[i];
+            if (i + 1 < single) ofs << ',';
+        }
+        ofs << '\n';
+    }
+#endif
+
     cudaMemcpy(
             tensor.ptr() + offset,
             input_data.data(),
@@ -146,7 +164,10 @@ void InferModelBaseMulti::copyCpuDataFromOutputBuffer(
         int batch_idx)
 {
     auto& tensor = g_map_trtTensors.at(tensor_name);
-    auto dims = tensor.getDims();
+    const auto& dims = tensor.getDims();
+    if (dims.empty() || dims[0] <= 0) {
+        throw std::runtime_error("Invalid tensor dimensions for " + tensor_name);
+    }
     size_t total = tensor.elements();
     size_t batch_count = static_cast<size_t>(dims[0]);
     size_t single = total / batch_count;
@@ -155,10 +176,69 @@ void InferModelBaseMulti::copyCpuDataFromOutputBuffer(
         throw std::runtime_error("Output data size mismatch for " + tensor_name);
     }
     size_t offset = static_cast<size_t>(batch_idx) * single;
+
     cudaMemcpy(
             output_data.data(),
             tensor.ptr() + offset,
             sizeof(float) * single,
             cudaMemcpyDeviceToHost
     );
+
+#if DEBUG
+    {
+        std::ofstream ofs(tensor_name + "_output_batch" + std::to_string(batch_idx) + ".csv");
+        for (size_t i = 0; i < single; ++i) {
+            ofs << output_data[i];
+            if (i + 1 < single) ofs << ',';
+        }
+        ofs << '\n';
+    }
+#endif
 }
+
+
+//void InferModelBaseMulti::copyCpuDataToInputBuffer(
+//        const std::string& tensor_name,
+//        const std::vector<float>& input_data,
+//        int batch_idx)
+//{
+//    auto& tensor = g_map_trtTensors.at(tensor_name);
+//    auto dims = tensor.getDims();
+//    size_t total = tensor.elements();
+//    size_t batch_count = static_cast<size_t>(dims[0]);
+//    size_t single = total / batch_count;
+//
+//    if (input_data.size() != single) {
+//        throw std::runtime_error("Input data size mismatch for " + tensor_name);
+//    }
+//    size_t offset = static_cast<size_t>(batch_idx) * single;
+//    cudaMemcpy(
+//            tensor.ptr() + offset,
+//            input_data.data(),
+//            sizeof(float) * single,
+//            cudaMemcpyHostToDevice
+//    );
+//}
+//
+//void InferModelBaseMulti::copyCpuDataFromOutputBuffer(
+//        const std::string& tensor_name,
+//        std::vector<float>& output_data,
+//        int batch_idx)
+//{
+//    auto& tensor = g_map_trtTensors.at(tensor_name);
+//    auto dims = tensor.getDims();
+//    size_t total = tensor.elements();
+//    size_t batch_count = static_cast<size_t>(dims[0]);
+//    size_t single = total / batch_count;
+//
+//    if (output_data.size() != single) {
+//        throw std::runtime_error("Output data size mismatch for " + tensor_name);
+//    }
+//    size_t offset = static_cast<size_t>(batch_idx) * single;
+//    cudaMemcpy(
+//            output_data.data(),
+//            tensor.ptr() + offset,
+//            sizeof(float) * single,
+//            cudaMemcpyDeviceToHost
+//    );
+//}

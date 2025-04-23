@@ -262,10 +262,15 @@ bool TrtEngineMultiTs::createContext(
 // - 用 setInputTensorAddress/setOutputTensorAddress 绑定内存  :contentReference[oaicite:1]{index=1}
 // - 使用 enqueueV3 执行推理（V2/V1 都已弃用）    :contentReference[oaicite:2]{index=2}
 //-----------------------------------------------------------------------------
+//bool TrtEngineMultiTs::infer(
+//        const std::vector<Tensor<float>>& inputs,
+//        const std::vector<Tensor<float>>& outputs,
+//        cudaStream_t                      stream) const
+
 bool TrtEngineMultiTs::infer(
         const std::vector<Tensor<float>>& inputs,
         const std::vector<Tensor<float>>& outputs,
-        cudaStream_t                      stream) const
+        cudaStream_t stream) const
 {
     if (!g_ptr_context) {
         LOG_ERROR("TrtEngine::infer", "ExecutionContext 未初始化");
