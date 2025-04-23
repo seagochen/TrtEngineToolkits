@@ -82,41 +82,73 @@ bool c_efficient_net_inference() {
     }
 
     // 执行推理
-    vptr_efficient_net->inference();
+    return vptr_efficient_net->inference();
 };
 
+// float* c_efficient_net_get_result(int n_index, int* n_size) {
+
+//     // Check if the model is initialized
+//     if (vptr_efficient_net == nullptr) {
+//         LOG_ERROR("c_efficient_net_get_result", "EfficientNet model is not initialized.");
+//         return nullptr;
+//     }
+
+//     // 获取推理结果
+//     auto vect_results = vptr_efficient_net->postprocess(n_index);
+//     if (vect_results.empty()) {
+//         LOG_ERROR("c_efficient_net_get_result", "EfficientNet model result is empty.");
+//         *n_size = -1;
+//         return nullptr;
+//     }
+
+//     // 获取结果大小
+//     *n_size = vptr_result.size();
+  
+//     // 如果结果不为空，将数据复制到 vptr_result，并返回该指针
+//     if (vptr_result != nullptr && result_size != *n_size) {
+//         delete[] vptr_result;
+//         vptr_result = new float[*n_size];
+//         result_size = *n_size;
+//     }
+    
+//     // 拷贝数据到 vptr_result
+//     for (int i = 0; i < *n_size; ++i) {
+//         vptr_result[i] = vect_results[i];
+//     }
+//     return vptr_result;
+// };
+
+
 float* c_efficient_net_get_result(int n_index, int* n_size) {
-
-    // Check if the model is initialized
-    if (vptr_efficient_net == nullptr) {
+    if (!vptr_efficient_net) {
         LOG_ERROR("c_efficient_net_get_result", "EfficientNet model is not initialized.");
-        return nullptr;
-    }
-
-    // 获取推理结果
-    auto vptr_result = vptr_efficient_net->postprocess(n_index);
-    if (vptr_result.empty()) {
-        LOG_ERROR("c_efficient_net_get_result", "EfficientNet model result is empty.");
         *n_size = -1;
         return nullptr;
     }
 
-    // 获取结果大小
-    *n_size = vptr_result.size();
-  
-    // 如果结果不为空，将数据复制到 vptr_result，并返回该指针
-    if (vptr_result != nullptr && result_size != *n_size) {
+    // 1) 拉取结果到临时vector
+    std::vector<float> vect_results = vptr_efficient_net->postprocess(n_index);
+    if (vect_results.empty()) {
+        LOG_ERROR("c_efficient_net_get_result", "EfficientNet model result is empty.");
+        *n_size = 0;
+        return nullptr;
+    }
+
+    // 2) 正确地设置输出大小
+    *n_size = static_cast<int>(vect_results.size());
+
+    // 3) (重新)分配 C 数组：要么第一次， 要么 size 发生变化
+    if (vptr_result == nullptr || result_size != *n_size) {
         delete[] vptr_result;
         vptr_result = new float[*n_size];
         result_size = *n_size;
     }
-    
-    // 拷贝数据到 vptr_result
-    for (int i = 0; i < *n_size; ++i) {
-        vptr_result[i] = vptr_result[i];
-    }
+
+    // 4) 拷贝数据
+    std::copy(vect_results.begin(), vect_results.end(), vptr_result);
+
     return vptr_result;
-};
+}
 
 #ifdef __cplusplus
 };
