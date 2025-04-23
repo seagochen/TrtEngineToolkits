@@ -37,10 +37,10 @@ private:
     std::vector<float> g_vec_featData;    // 大小 = feature_dim(256)
     std::vector<float> g_vec_classData;   // 大小 = class_dim(2)
 
-    // 合并 feature + class 向量
-    static std::vector<float> decode(
-            const std::vector<float>& vec_feat,
-            const std::vector<float>& vec_class);
+    // // 合并 feature + class 向量
+    // static std::vector<float> decode(
+    //         const std::vector<float>& vec_feat,
+    //         const std::vector<float>& vec_class);
 };
 
 

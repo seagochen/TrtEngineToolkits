@@ -8,7 +8,7 @@
 #include <cuda_runtime.h>
 #include <fstream>
 
-#define DEBUG 1
+#define DEBUG 0
 
 InferModelBaseMulti::InferModelBaseMulti(
         const std::string& engine_path,
@@ -43,22 +43,43 @@ InferModelBaseMulti::~InferModelBaseMulti() {
     cudaStreamDestroy(g_stream);
 }
 
+// bool InferModelBaseMulti::inference() {
+//     // 构造输入列表
+//     std::vector<Tensor<float>> inputs;
+//     inputs.reserve(g_input_defs.size());
+//     for (const auto& def : g_input_defs) {
+//         inputs.emplace_back(g_map_trtTensors[def.name]);
+//     }
+
+//     // 构造输出列表
+//     std::vector<Tensor<float>> outputs;
+//     outputs.reserve(g_output_defs.size());
+//     for (const auto& def : g_output_defs) {
+//         outputs.emplace_back(g_map_trtTensors[def.name]);
+//     }
+
+//     // 执行推理
+//     if (!g_ptr_engine->infer(inputs, outputs, g_stream)) {
+//         LOG_ERROR("InferModelBase", "Inference failed");
+//         return false;
+//     }
+//     cudaStreamSynchronize(g_stream);
+//     return true;
+// }
+
 bool InferModelBaseMulti::inference() {
-    // 构造输入列表
-    std::vector<Tensor<float>> inputs;
+    // 构造“指针列表”而非拷贝
+    std::vector<Tensor<float>*> inputs, outputs;
     inputs.reserve(g_input_defs.size());
-    for (const auto& def : g_input_defs) {
-        inputs.emplace_back(g_map_trtTensors[def.name]);
-    }
-
-    // 构造输出列表
-    std::vector<Tensor<float>> outputs;
     outputs.reserve(g_output_defs.size());
-    for (const auto& def : g_output_defs) {
-        outputs.emplace_back(g_map_trtTensors[def.name]);
-    }
 
-    // 执行推理
+    // 构造输入，输出列表
+    for (auto& def : g_input_defs)
+        inputs.push_back(&g_map_trtTensors[def.name]);
+    for (auto& def : g_output_defs)
+        outputs.push_back(&g_map_trtTensors[def.name]);
+
+    // 这次 infer 绑定的就是 map 里原始的 Tensor，结果自然写回到它们
     if (!g_ptr_engine->infer(inputs, outputs, g_stream)) {
         LOG_ERROR("InferModelBase", "Inference failed");
         return false;

@@ -268,9 +268,10 @@ bool TrtEngineMultiTs::createContext(
 //        cudaStream_t                      stream) const
 
 bool TrtEngineMultiTs::infer(
-        const std::vector<Tensor<float>>& inputs,
-        const std::vector<Tensor<float>>& outputs,
-        cudaStream_t stream) const
+            const std::vector<Tensor<float>*>& inputs,
+            const std::vector<Tensor<float>*>& outputs,
+            cudaStream_t stream
+          ) const
 {
     if (!g_ptr_context) {
         LOG_ERROR("TrtEngine::infer", "ExecutionContext 未初始化");
@@ -286,7 +287,7 @@ bool TrtEngineMultiTs::infer(
     for (size_t i = 0; i < inputs.size(); ++i) {
         const auto& name = m_inputNames[i];
         if (!g_ptr_context->setInputTensorAddress(
-                name.c_str(), inputs[i].ptr())) {
+                name.c_str(), inputs[i]->ptr())) {
             LOG_ERROR("TrtEngine::infer",
                       "setInputTensorAddress 失败: " + name);
             return false;
@@ -298,7 +299,7 @@ bool TrtEngineMultiTs::infer(
         const auto& name = m_outputNames[i];
 
         // outputs[i].ptr()返回的是一个智能指针，因此需要做一些转换
-        auto ptr = static_cast<void*>(const_cast<float*>(outputs[i].ptr()));
+        auto ptr = static_cast<void*>(const_cast<float*>(outputs[i]->ptr()));
 
         // 绑定输出 buffer
         if (!g_ptr_context->setOutputTensorAddress(

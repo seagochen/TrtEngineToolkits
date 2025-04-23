@@ -7,7 +7,7 @@
 
 #include <opencv2/opencv.hpp>
 
-int c_api_test() {
+int c_yolo_api_test() {
 
     // Initialize the model
     c_yolo_init("/opt/models/yolov8n.engine");
@@ -58,11 +58,11 @@ int infer_model_multi_test() {
     };
 
     // Load the engine from file
-    EfficientNetForFeatAndClassification efficient_net("/opt/models/efficientnet_b0_feat_logits_simplified.engine", 1);
+    EfficientNetForFeatAndClassification efficient_net("/opt/models/efficientnet_b0_feat_logits.engine", 2);
 
     // Load the image, and check if it was loaded successfully
-    cv::Mat image1 = cv::imread("/opt/images/0_label.bmp", cv::IMREAD_COLOR);
-    cv::Mat image2 = cv::imread("/opt/images/1_label.bmp", cv::IMREAD_COLOR);
+    cv::Mat image1 = cv::imread("/opt/images/0_1.bmp", cv::IMREAD_COLOR);
+    cv::Mat image2 = cv::imread("/opt/images/1_4.bmp", cv::IMREAD_COLOR);
 
     // Check if the images were loaded successfully
     if (image1.empty() || image2.empty()) {
@@ -70,23 +70,31 @@ int infer_model_multi_test() {
         return -1;
     }
 
-    // Preprocess the images
+    // Process the image1
     efficient_net.preprocess(image1, 0);
+    efficient_net.preprocess(image2, 1);
 
+    // Inference
     if (!efficient_net.inference()) {
         std::cerr << "Error: Inference failed." << std::endl;
         return -1;
     }
 
-    auto vec = efficient_net.postprocess(0);
-    // for (auto &v : vec) {
-    //     std::cout << v << "\t";
-    // }
+    // Process the image2
+    auto vec1 = efficient_net.postprocess(0);
+    std::cout << "Classification result for image1: " << vec1[0] << std::endl;
+    auto vec2 = efficient_net.postprocess(1);
+    std::cout << "Classification result for image2: " << vec2[0] << std::endl;
 
     return 0;
 }
 
 
 int main() {
+
+    // Test the C YOLO API
+    c_yolo_api_test();
+
+    // Test the EfficientNet model
     infer_model_multi_test();
 }

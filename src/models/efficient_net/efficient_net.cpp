@@ -84,20 +84,25 @@ void EfficientNetForFeatAndClassification::preprocess(
         return;
     }
 
-    // 2) Resize 到指定大小
+    // 2) 将颜色空间转换为 RGB
+    cv::Mat rgbImage;
+    cv::cvtColor(image, rgbImage, cv::COLOR_BGR2RGB);
+
+
+    // 3) Resize 到指定大小
     cv::Mat resized;
-    cv::resize(image, resized,
+    cv::resize(rgbImage, resized,
                cv::Size(g_int_inputWidth, g_int_inputHeight));
 
-    // 3) 转换为 float 并归一化到 [0,1]
+    // 4) 转换为 float 并归一化到 [0,1]
     cv::Mat floatImg;
     resized.convertTo(floatImg, CV_32FC3, 1.0f / 255.0f);
 
-    // 4) 准备标准化参数
+    // 5) 准备标准化参数
     const float mean[3] = {0.485f, 0.456f, 0.406f};
     const float stdv[3] = {0.229f, 0.224f, 0.225f};
 
-    // 5) HWC -> CHW，并在此过程中做标准化
+    // 6) HWC -> CHW，并在此过程中做标准化
     //    CHW 格式下，每个通道有 H*W 个元素
     const int H = g_int_inputHeight;
     const int W = g_int_inputWidth;
@@ -122,7 +127,7 @@ void EfficientNetForFeatAndClassification::preprocess(
         }
     }
 
-    // 6) 上传到 GPU
+    // 7) 上传到 GPU
     copyCpuDataToInputBuffer("input", g_vec_inputData, batchIdx);
 }
 
@@ -136,20 +141,50 @@ std::vector<float> EfficientNetForFeatAndClassification::postprocess(
         return {};
     }
 
-    // 一次性读回 feat & logits
+    // 1) 读回特征和分类 logits
     copyCpuDataFromOutputBuffer("feat",   g_vec_featData,  batchIdx);
     copyCpuDataFromOutputBuffer("logits", g_vec_classData, batchIdx);
-    return decode(g_vec_featData, g_vec_classData);
-}
 
-std::vector<float> EfficientNetForFeatAndClassification::decode(
-        const std::vector<float>& vec_feat,
-        const std::vector<float>& vec_class)
-{
+    // 2) 找到 logits 中最大值的下标
+    // auto val1 = abs(g_vec_classData[0]);
+    // auto val2 = abs(g_vec_classData[1]);
+    auto val1 = g_vec_classData[0];
+    auto val2 = g_vec_classData[1];
+    int maxIndex = (val1 > val2) ? 0 : 1;
+
+    // auto it = std::max_element(g_vec_classData.begin(), g_vec_classData.end());
+    // int maxIndex = static_cast<int>(std::distance(g_vec_classData.begin(), it));
+
+    // 3) 构造最终返回： [maxIndex, feat0, feat1, ..., featN]
     std::vector<float> result;
-    result.reserve(vec_feat.size() + vec_class.size());
-    // 先放分类,再放特征
-    result.insert(result.end(), vec_class.begin(), vec_class.end());
-    result.insert(result.end(), vec_feat.begin(),  vec_feat.end());
+    result.reserve(1 + g_vec_featData.size());
+    result.push_back(static_cast<float>(maxIndex));            // result[0]
+    result.insert(result.end(),                             
+                  g_vec_featData.begin(), 
+                  g_vec_featData.end());                     // 后面都是特征
+
     return result;
 }
+
+// std::vector<float> EfficientNetForFeatAndClassification::decode(
+//         const std::vector<float>& vec_feat,
+//         const std::vector<float>& vec_class)
+// {
+//     // 找到分类最大值的下标
+//     auto it = std::max_element(vec_class.begin(), vec_class.end());
+//     int maxIndex = static_cast<int>(std::distance(vec_class.begin(), it));
+
+//     // std::vector<float> result;
+//     // result.reserve(vec_feat.size() + vec_class.size());
+//     // // 先放分类,再放特征
+//     // result.insert(result.end(), vec_class.begin(), vec_class.end());
+//     // result.insert(result.end(), vec_feat.begin(),  vec_feat.end());
+//     // return result;
+
+//     // 构造结果
+//     std::vector<float> result;
+//     result.reserve(1 + vec_feat.size());
+//     result.push_back(static_cast<float>(maxIndex));
+//     result.insert(result.end(), vec_feat.begin(), vec_feat.end());
+//     return result;
+// }
