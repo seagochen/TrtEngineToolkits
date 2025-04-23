@@ -63,4 +63,6 @@ class EfficientNetWrapper:
         
         # 将结果转换为 numpy 数组
         result_array = np.ctypeslib.as_array(result_ptr, shape=(size.value,))
-        return result_array
+
+        # 创建一个新的拷贝
+        return np.copy(result_array)
