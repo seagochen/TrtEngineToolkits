@@ -67,12 +67,12 @@ class SchemaLoader:
             (0, 128, 255)  # Class 9: Orange
         ]
 
-    def load_external_schema(self, schema_file: str):
-        """加载外部的关键点和骨骼映射。"""
-        if not os.path.isfile(schema_file):
-            raise FileNotFoundError("The schema file does not exist.")
+    # def load_external_schema(self, schema_file: str):
+    #     """加载外部的关键点和骨骼映射。"""
+    #     if not os.path.isfile(schema_file):
+    #         raise FileNotFoundError("The schema file does not exist.")
 
-        kpt_color_map, skeleton_map, bbox_colors = load_schema_from_json(schema_file)
-        self.kpt_color_map = kpt_color_map
-        self.skeleton_map = skeleton_map
-        self.bbox_colors = bbox_colors
+    #     kpt_color_map, skeleton_map, bbox_colors = load_schema_from_json(schema_file)
+    #     self.kpt_color_map = kpt_color_map
+    #     self.skeleton_map = skeleton_map
+    #     self.bbox_colors = bbox_colors

@@ -81,7 +81,7 @@ file(GLOB_RECURSE
 # ------------------ 生成目标：c_api_test (可执行文件) ------------------
 # 1) 测试专用的两个源
 set(TEST_SPECIAL_SOURCES
-        "${PROJECT_SOURCE_DIR}/c_api_test.cpp"
+        "${PROJECT_SOURCE_DIR}/test.cpp"
 )
 
 # 2) 合并公共源和测试专用源

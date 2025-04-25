@@ -2,8 +2,6 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from common.painter.asc_text import calculate_average_color
-
 
 def decide_text_color(average_color):
     """Decide whether to use black or white text based on the average color."""
