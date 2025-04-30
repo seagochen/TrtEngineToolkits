@@ -8,9 +8,9 @@ import numpy as np
 # 封装成 Python 类
 class EfficientNetEngineWrapper:
     def __init__(self, model_path: str, max_batch_size: int = 1):
-
         #### 加载动态库 ####
-        self.c_apis = ctypes.cdll.LoadLibrary('/opt/TrtEngineToolkits/cmake-build-release/libjetson.so')  # 或 'cyolo.dll' on Windows
+        self.c_apis = ctypes.cdll.LoadLibrary(
+            '/opt/TrtEngineToolkits/cmake-build-release/libjetson.so')  # 或 'cyolo.dll' on Windows
 
         #### 函数原型定义 ####
 
@@ -48,7 +48,6 @@ class EfficientNetEngineWrapper:
 
     def inference(self) -> bool:
         return self.c_apis.c_efficient_net_inference()
-    
 
     def get_result(self, item_index: int) -> Union[np.ndarray, None]:
         """
@@ -60,7 +59,7 @@ class EfficientNetEngineWrapper:
         result_ptr = self.c_apis.c_efficient_net_get_result(item_index, ctypes.byref(size))
         if not result_ptr or size.value <= 0:
             return None
-        
+
         # 将结果转换为 numpy 数组
         result_array = np.ctypeslib.as_array(result_ptr, shape=(size.value,))
 

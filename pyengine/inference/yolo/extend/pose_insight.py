@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import List, Union, Tuple
 
 import numpy as np
-from pyengine.inference.yolo.data_struct import YoloPose, YoloPoseSorted
+from pyengine.inference.yolo.d_struct.data_struct import YoloPose, YoloPoseSorted
 
 # -------------- 定义 dataclass --------------
 @dataclass
