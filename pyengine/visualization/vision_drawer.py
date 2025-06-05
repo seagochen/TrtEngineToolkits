@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 from pyengine.inference.yolo.d_struct.data_struct import YoloPose, Yolo, YoloPoseSorted, YoloSorted
-from pyengine.inference.yolo.extend.pose_insight import FacialDirection
+from pyengine.inference.yolo.extend.basic import FacialDirection
 from pyengine.visualization.schema_loader import SchemaLoader
 
 
@@ -18,7 +18,7 @@ class VisionDrawer:
     def __init__(self,
                  schema_loader: SchemaLoader,
                  object_conf_threshold: float = 0.25,
-                 point_conf_threshold: float = 0.5,
+                 point_conf_threshold: float = 0.25,
                  flashing_frequency_hz: float = 1.0):
         """
         Initializes the VisionDrawer.
