@@ -248,6 +248,9 @@ class VisionDrawer:
         else:
             bbox_color = self._get_static_bbox_color(bbox_style) # Use static color
 
+            if bbox_style == "white":
+                text_color = (0, 0, 0)  # Use black text on white bbox
+
         self._draw_bbox_and_label(frame_copied, label_text, bbox_coords, bbox_color,
                                   text_color, font_scale, thickness)
         

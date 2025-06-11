@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import List, Union, Tuple
 
 import numpy as np
-from pyengine.inference.yolo.d_struct.data_struct import YoloPose, YoloPoseSorted
+from pyengine.inference.yolo.d_struct.data_struct import YoloPose, YoloPoseSorted, YoloPoint
 from pyengine.inference.yolo.extend.basic import Posture, FacialDirection
 
 
@@ -41,8 +41,8 @@ class PoseInsight:
         新的编码规则建议:
             0 - 未知 (Unknown)
             1 - 弯腰 (Bending) - （可选）如果仍需判断弯腰，则需要关键点。
-                                如果仅用长宽比，弯腰可能被判断为站立或蹲/坐。
-                                这里暂时将其简化，不单独判断弯腰，除非有明确的区分逻辑。
+                                  如果仅用长宽比，弯腰可能被判断为站立或蹲/坐。
+                                  这里暂时将其简化，不单独判断弯腰，除非有明确的区分逻辑。
             2 - 坐/下蹲 (Sitting/Squatting)
             3 - 站立 (Standing)
         """
@@ -51,49 +51,31 @@ class PoseInsight:
 
         if bbox_width == 0 or bbox_height == 0:
             return Posture(action=0)  # 未知，无效检测框
-        
+
         # 检查关键点列表长度是否足够
-        if len(pose.pts) < 17: # COCO model has 17 keypoints (0-16)
+        if len(pose.pts) < 17:  # COCO model has 17 keypoints (0-16)
             # Not enough keypoints to determine ankles, return unknown or a default
-            # print(f"Warning: pose.pts has {len(pose.pts)} keypoints, expected at least 17.")
-            return Posture(action=0) # Or handle as per your logic
+            return Posture(action=0)
 
         # COCO 17 keypoints:
         # 15: Left Ankle
         # 16: Right Ankle
-        left_ankle = pose.pts[15]  # Corrected index for Left Ankle
-        right_ankle = pose.pts[16] # Corrected index for Right Ankle
+        left_ankle = pose.pts[15]
+        right_ankle = pose.pts[16]
         if not PoseInsight._is_valid_point(left_ankle) or not PoseInsight._is_valid_point(right_ankle):
-            # 如果没有足部关键点，可能是站立或其他姿态
-            # 这里可以根据实际情况调整逻辑
             return Posture(action=0)
 
         aspect_ratio = bbox_height / bbox_width
-        # print(aspect_ratio)  # 调试输出，查看长宽比
 
-        # --- 阈值定义 ---
-        # 这些阈值需要根据你的具体场景和数据进行调整
-        # 通常站立时，高度明显大于宽度
-        # 坐或蹲时，高度和宽度相对接近，或者高度略大于/小于宽度
-        standing_threshold = 3.0  # 3.0 是一个比较合适的阈值，如果小于3.0，通常被检测人只有一部分身体进入视频中
-        # sitting_squatting_threshold_upper = 1.5 # 例如：高/宽 <=1.5
-        # sitting_squatting_threshold_lower = 0.7 # 例如：高/宽 >=0.7
-
-        action_code = 0 # 默认为未知
+        standing_threshold = 3.0
 
         if aspect_ratio >= standing_threshold:
-            action_code = 3  # 站立
-        # elif sitting_squatting_threshold_lower <= aspect_ratio < sitting_squatting_threshold_upper:
-        #     action_code = 2  # 坐/下蹲
+            action_code = 3  # Standing
         else:
-            action_code = 2 # 坐/下蹲
-        
-        # TODO
-        # 通过bbox比例并不是一个精确的判断方式，之后会通过训练efficent_resnet模型，并增加输出任务来精准的判定
-        # 之后这个方法会被舍弃
+            action_code = 2  # Sitting/Squatting
 
+        # TODO: Replace with more accurate model-based posture detection
         return Posture(action=action_code)
-
 
     @staticmethod
     def _is_valid_point(pt) -> bool:
@@ -106,112 +88,147 @@ class PoseInsight:
         根据检测框宽度计算模长，若检测框有效则返回宽度的 1/3，
         否则返回默认值 10。
         """
-        if pose.lx > 0 and pose.ly > 0 and pose.rx > pose.lx: # 确保 lx, ly 有效且 rx > lx
+        if pose.lx is not None and pose.ly is not None and pose.rx is not None and pose.rx > pose.lx:
             return int(abs(pose.lx - pose.rx) / 3.0)
         return 10
+
+    @staticmethod
+    def _get_keypoints(pts: List[YoloPoint]) -> Tuple[YoloPoint, YoloPoint, YoloPoint, YoloPoint, YoloPoint]:
+        """Helper to safely get the first 5 keypoints."""
+        # This assumes pts has at least 5 elements, which is checked in _analyze_facial_direction
+        return pts[0], pts[1], pts[2], pts[3], pts[4]
+
+    @staticmethod
+    def _analyze_front_side_back_face(nose: YoloPoint, left_eye: YoloPoint, right_eye: YoloPoint,
+                                      left_ear: YoloPoint, right_ear: YoloPoint,
+                                      valid_left_ear: bool, valid_right_ear: bool) -> Tuple[
+        int, Tuple[float, float], Tuple[int, int]]:
+        """Analyzes facial direction when nose and both eyes are valid."""
+        mid_eye_x = (left_eye.x + right_eye.x) / 2.0
+        mid_eye_y = (left_eye.y + right_eye.y) / 2.0
+        face_vec = (nose.x - mid_eye_x, nose.y - mid_eye_y)
+
+        angle_rad = np.arctan2(face_vec[1], face_vec[0])
+        angle_deg = np.degrees(angle_rad)
+        angle_deg_norm = (angle_deg + 360) % 360
+
+        # Define your thresholds for angles
+        front_threshold = 5  # +/- degrees around 90 for front
+        # side_threshold = 30  # +/- degrees around 0/180 for side
+        # back_threshold = 20  # +/- degrees around 270 for back
+
+        # 身体正面摄像头时，+/-5°的时候，基本上是视线朝向正前方，超过95或者低于85的时候，基本上视线落在在摄像头的左侧或者右侧方位
+        if (90 - front_threshold) <= angle_deg_norm <= (90 + front_threshold):
+            orientation = 0  # Front
+
+        elif angle_deg_norm < 90 - front_threshold:
+            orientation = 1  # Left side (person's left to camera, face points right on image)
+
+        else:
+            orientation = 2  # Right side (person's right to camera, face points left on image)
+
+        # elif (angle_deg_norm <= side_threshold) or (angle_deg_norm >= (360 - side_threshold)):
+        #     orientation = 1  # Left side (person's left to camera, face points right on image)
+        # elif (180 - side_threshold) <= angle_deg_norm <= (180 + side_threshold):
+        #     orientation = 2  # Right side (person's right to camera, face points left on image)
+
+        # 面向摄像头的时候，是不可能存在 3 这种状态的
+        # elif (270 - back_threshold) <= angle_deg_norm <= (270 + back_threshold):
+        #     orientation = 3  # Back
+        # else:
+        #     orientation = -1  # Unknown
+
+        # print("正面", orientation, angle_deg_norm)
+
+        vec_x, vec_y = 0.0, 0.0
+        if valid_left_ear and valid_right_ear:
+            ear_mid_x = (left_ear.x + right_ear.x) / 2.0
+            ear_mid_y = (left_ear.y + right_ear.y) / 2.0
+            adj_vec = (nose.x - ear_mid_x, nose.y - ear_mid_y)
+            norm = np.sqrt(adj_vec[0] ** 2 + adj_vec[1] ** 2)
+            if norm != 0:
+                vec_x, vec_y = adj_vec[0] / norm, adj_vec[1] / norm
+        else:
+            norm_face_vec = np.sqrt(face_vec[0] ** 2 + face_vec[1] ** 2)
+            if norm_face_vec != 0:
+                vec_x, vec_y = face_vec[0] / norm_face_vec, face_vec[1] / norm_face_vec
+            else:
+                vec_x, vec_y = 0.0, 0.0
+
+        origin_x, origin_y = int(nose.x), int(nose.y)
+        return orientation, (vec_x, vec_y), (origin_x, origin_y)
+
+    @staticmethod
+    def _analyze_single_eye_face(nose: YoloPoint, left_eye: YoloPoint, right_eye: YoloPoint) -> Tuple[
+        int, Tuple[float, float], Tuple[int, int]]:
+        """Analyzes facial direction when nose and only one eye are valid."""
+        orientation = -1
+        vec_x, vec_y = 0.0, 0.0
+        origin_x, origin_y = int(nose.x), int(nose.y)
+
+        if PoseInsight._is_valid_point(left_eye) and not PoseInsight._is_valid_point(right_eye):
+            orientation = 1  # Left side
+            vec_x, vec_y = 1.0, 0.0  # Vector pointing right on image
+        elif PoseInsight._is_valid_point(right_eye) and not PoseInsight._is_valid_point(left_eye):
+            orientation = 2  # Right side
+            vec_x, vec_y = -1.0, 0.0  # Vector pointing left on image
+        return orientation, (vec_x, vec_y), (origin_x, origin_y)
+
+    @staticmethod
+    def _analyze_back_face_ears_only(left_ear: YoloPoint, right_ear: YoloPoint) -> Tuple[
+        int, Tuple[float, float], Tuple[int, int]]:
+        """Analyzes facial direction when only both ears are valid (implies back of head)."""
+        orientation = 3  # Back
+        ear_mid_x = (left_ear.x + right_ear.x) / 2.0
+        ear_mid_y = (left_ear.y + right_ear.y) / 2.0
+        origin_x, origin_y = int(ear_mid_x), int(ear_mid_y)
+        vec_x, vec_y = 0.0, -1.0  # Vector pointing upwards on image
+        return orientation, (vec_x, vec_y), (origin_x, origin_y)
 
     @staticmethod
     def _analyze_facial_direction(pose: Union[YoloPose, YoloPoseSorted]) -> FacialDirection:
         """
         根据 pose 中的面部关键点信息分析面部朝向，返回 FacialDirection 对象。
-        逻辑：
-          1. 当鼻子 + 双眼有效时：
-            - 计算眼中点到鼻子的向量，得出角度
-            - 如果左右耳均有效，则使用 (鼻子 - 耳中点) 归一化得到最终方向
-          2. 当鼻子与仅一只眼有效时，直接判断左右侧
-          3. 当脸部关键点不可用，但双耳有效时，判断为背面
-          4. 否则判定为未知，原点取检测框左上角，方向向量为 (0, 0)
         """
         modulus = PoseInsight._compute_modulus(pose)
         pts = pose.pts
-        if len(pts) < 5: # 至少需要前5个面部关键点
-             return FacialDirection(
-                modulus=modulus, vector=(0.0, 0.0), origin=(int(pose.lx), int(pose.ly)),
-                direction_desc=PoseInsight.ORIENTATION_TEXTS.get(-1, "Unknown"), direction_type=-1
-            )
 
-        nose = pts[0]
-        right_eye = pts[1]
-        left_eye = pts[2]
-        right_ear = pts[3]
-        left_ear = pts[4]
-
-        valid_nose = PoseInsight._is_valid_point(nose)
-        valid_right_eye = PoseInsight._is_valid_point(right_eye)
-        valid_left_eye = PoseInsight._is_valid_point(left_eye)
-        valid_right_ear = PoseInsight._is_valid_point(right_ear)
-        valid_left_ear = PoseInsight._is_valid_point(left_ear)
-
+        # Default values for unknown state
         orientation = -1
         vec_x, vec_y = 0.0, 0.0
-        origin_x, origin_y = int(pose.lx), int(pose.ly) # 默认原点
+        origin_x, origin_y = int(pose.lx), int(pose.ly)
 
-        if valid_nose and valid_left_eye and valid_right_eye:
-            mid_x = (left_eye.x + right_eye.x) / 2.0
-            mid_y = (left_eye.y + right_eye.y) / 2.0
-            face_vec = (nose.x - mid_x, nose.y - mid_y) # 从眼中点指向鼻子的向量
-            angle = np.degrees(np.arctan2(face_vec[1], face_vec[0])) # 向量与x轴正方向的夹角
+        if len(pts) < 5:  # Not enough keypoints for face analysis
+            pass  # Will return unknown based on defaults
 
-            # 角度调整到面部朝向的常规理解 (0度右, 90度下, 180度左, 270度上)
-            # 我们需要的是鼻子相对于双眼中心的方向
-            # 如果 face_vec[1] (即 nose.y - mid_y) > 0，说明鼻子在双眼下方，朝前
-            # 如果 face_vec[0] (即 nose.x - mid_x) > 0，说明鼻子在双眼右侧，脸朝左
-            # 如果 face_vec[0] < 0，说明鼻子在双眼左侧，脸朝右
+        else:
+            nose, right_eye, left_eye, right_ear, left_ear = PoseInsight._get_keypoints(pts)
 
-            # 重新定义方向判定逻辑，基于人脸的几何特征
-            # eye_dist = np.sqrt((left_eye.x - right_eye.x)**2 + (left_eye.y - right_eye.y)**2)
-            # nose_to_left_eye_dist = np.sqrt((nose.x - left_eye.x)**2 + (nose.y - left_eye.y)**2)
-            # nose_to_right_eye_dist = np.sqrt((nose.x - right_eye.x)**2 + (nose.y - right_eye.y)**2)
+            valid_nose = PoseInsight._is_valid_point(nose)
+            valid_right_eye = PoseInsight._is_valid_point(right_eye)
+            valid_left_eye = PoseInsight._is_valid_point(left_eye)
+            valid_right_ear = PoseInsight._is_valid_point(right_ear)
+            valid_left_ear = PoseInsight._is_valid_point(left_ear)
 
-            # 简化：使用之前的角度判断逻辑，但可能需要调整阈值
-            # (angle + 180) % 360 的调整可能不直观，直接使用 angle
-            # angle: [-180, 180]
-            #  ~0 degree: pointing right on image -> face left
-            #  ~90 degrees: pointing down on image -> face front
-            #  ~-90 degrees: pointing up on image -> face back (less likely)
-            #  ~180 or ~-180 degrees: pointing left on image -> face right
+            # Scenario 1: Nose and both eyes are valid (most detailed analysis)
+            if valid_nose and valid_left_eye and valid_right_eye:
+                orientation, (vec_x, vec_y), (origin_x, origin_y) = \
+                    PoseInsight._analyze_front_side_back_face(nose, left_eye, right_eye,
+                                                              left_ear, right_ear,
+                                                              valid_left_ear, valid_right_ear)
 
-            if 45 <= angle <= 135: # 指向图像下方 (大致)
-                orientation = 0  # 正面
-            elif -45 <= angle < 45: # 指向图像右方
-                orientation = 1  # 左侧 (人脸朝左)
-            elif -135 <= angle < -45: # 指向图像上方
-                orientation = 3  # 背面 (或头顶正对)
-            else: # 指向图像左方
-                orientation = 2  # 右侧 (人脸朝右)
+            # Scenario 2: Nose and only one eye is valid (side profile)
+            elif valid_nose and (valid_left_eye or valid_right_eye):
+                orientation, (vec_x, vec_y), (origin_x, origin_y) = \
+                    PoseInsight._analyze_single_eye_face(nose, left_eye, right_eye)
 
+            # Scenario 3: Face keypoints unavailable, but both ears are valid (back profile)
+            elif valid_left_ear and valid_right_ear and not (valid_nose or valid_left_eye or valid_right_eye):
+                orientation, (vec_x, vec_y), (origin_x, origin_y) = \
+                    PoseInsight._analyze_back_face_ears_only(left_ear, right_ear)
 
-            if valid_left_ear and valid_right_ear:
-                ear_mid_x = (left_ear.x + right_ear.x) / 2.0
-                ear_mid_y = (left_ear.y + right_ear.y) / 2.0
-                adj_vec = (nose.x - ear_mid_x, nose.y - ear_mid_y)
-                norm = np.sqrt(adj_vec[0] ** 2 + adj_vec[1] ** 2)
-                if norm != 0:
-                    vec_x, vec_y = adj_vec[0] / norm, adj_vec[1] / norm
-            else: # 只有双眼和鼻子
-                norm_face_vec = np.sqrt(face_vec[0]**2 + face_vec[1]**2)
-                if norm_face_vec != 0:
-                    vec_x, vec_y = face_vec[0] / norm_face_vec, face_vec[1] / norm_face_vec
-                else:
-                     vec_x, vec_y = 0.0,0.0
-            origin_x, origin_y = int(nose.x), int(nose.y)
-
-        elif valid_nose and (valid_left_eye or valid_right_eye):
-            origin_x, origin_y = int(nose.x), int(nose.y)
-            if valid_left_eye and not valid_right_eye: # 只能看到左眼和鼻子，说明人脸朝左
-                orientation = 1  # 左侧
-                vec_x, vec_y = 1.0, 0.0 # 指向图像右侧 (人脸的左边)
-            elif valid_right_eye and not valid_left_eye: # 只能看到右眼和鼻子，说明人脸朝右
-                orientation = 2  # 右侧
-                vec_x, vec_y = -1.0, 0.0 # 指向图像左侧 (人脸的右边)
-
-        elif valid_left_ear and valid_right_ear and not valid_nose and not valid_left_eye and not valid_right_eye:
-             # 脸部关键点都不可用，但双耳有效 -> 认为是背面
-            orientation = 3  # 背面
-            ear_mid_x = (left_ear.x + right_ear.x) / 2.0
-            ear_mid_y = (left_ear.y + right_ear.y) / 2.0
-            origin_x, origin_y = int(ear_mid_x), int(ear_mid_y)
-            vec_x, vec_y = 0.0, -1.0 # 指向图像上方 (通常表示后脑勺)
+            # Scenario 4: Not enough valid keypoints for any specific determination (remains unknown)
+            # TODO： 后续我们会将面部、姿态检测的代码都整合成一个模型进行判断
 
         facial_direction = FacialDirection(
             modulus=modulus,
@@ -226,11 +243,11 @@ class PoseInsight:
     def analyze_poses(poses: List[Union[YoloPose, YoloPoseSorted]]) -> List[Tuple[Posture, FacialDirection]]:
         """
         分析传入的 poses 列表，返回每个 pose 的 Posture 和 FacialDirection 信息，结果格式为：
-          [
-              (Posture(...), FacialDirection(...)),
-              (Posture(...), FacialDirection(...)),
-              ...
-          ]
+            [
+                (Posture(...), FacialDirection(...)),
+                (Posture(...), FacialDirection(...)),
+                ...
+            ]
         """
         results = []
         for pose in poses:
