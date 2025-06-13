@@ -3,7 +3,7 @@
 //
 
 #include "serverlet/c_efficient_net_apis.h"
-#include "serverlet/models/efficient_net/efficient_net.h"
+#include "serverlet/models/efficient_net/infer_efficient_net.h"
 
 #include "serverlet/utils/logger.h"
 
@@ -84,40 +84,6 @@ bool c_efficient_net_inference() {
     // 执行推理
     return vptr_efficient_net->inference();
 };
-
-// float* c_efficient_net_get_result(int n_index, int* n_size) {
-
-//     // Check if the model is initialized
-//     if (vptr_efficient_net == nullptr) {
-//         LOG_ERROR("c_efficient_net_get_result", "EfficientNet model is not initialized.");
-//         return nullptr;
-//     }
-
-//     // 获取推理结果
-//     auto vect_results = vptr_efficient_net->postprocess(n_index);
-//     if (vect_results.empty()) {
-//         LOG_ERROR("c_efficient_net_get_result", "EfficientNet model result is empty.");
-//         *n_size = -1;
-//         return nullptr;
-//     }
-
-//     // 获取结果大小
-//     *n_size = vptr_result.size();
-  
-//     // 如果结果不为空，将数据复制到 vptr_result，并返回该指针
-//     if (vptr_result != nullptr && result_size != *n_size) {
-//         delete[] vptr_result;
-//         vptr_result = new float[*n_size];
-//         result_size = *n_size;
-//     }
-    
-//     // 拷贝数据到 vptr_result
-//     for (int i = 0; i < *n_size; ++i) {
-//         vptr_result[i] = vect_results[i];
-//     }
-//     return vptr_result;
-// };
-
 
 float* c_efficient_net_get_result(int n_index, int* n_size) {
     if (!vptr_efficient_net) {

@@ -4,7 +4,7 @@
 
 #include <vector>
 #include "serverlet/c_yolo_v8_apis.h"
-#include "serverlet/models/yolo/infer_yolo_v8_obj.h"
+#include "serverlet/models/yolo/infer_yolo_v8.h"
 #include "serverlet/models/yolo/infer_yolo_v8_pose.h"
 
 #include "serverlet/utils/logger.h"

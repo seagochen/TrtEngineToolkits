@@ -114,3 +114,37 @@ target_link_libraries(jetson_static PRIVATE
         ${TENSORRT_LIBS}
         ${OpenCV_LIBRARIES}
 )
+
+# ------------------ 生成目标：trt_engine_test (可执行文件) ------------------
+# 1) 测试专用的两个源
+set(TEST_SPECIAL_SOURCES
+        "${PROJECT_SOURCE_DIR}/trt_engine_test.cpp"
+)
+
+# 2) 合并公共源和测试专用源
+list(APPEND TEST_SPECIAL_SOURCES ${COMMON_SOURCE_FILES})
+
+# 3) 生成可执行文件
+add_executable(trt_engine_test ${TEST_SPECIAL_SOURCES})
+
+# 设置目标属性
+set_target_properties(trt_engine_test PROPERTIES
+        OUTPUT_NAME "trt_engine_test"
+)
+
+# 添加包含目录
+target_include_directories(trt_engine_test PRIVATE
+        ${CUDA_INCLUDE_DIRS}
+        ${SIMPLE_CUDA_TOOLKITS_INC}
+        ${TENSORRT_INCLUDE_DIRS}
+        ${OpenCV_INCLUDE_DIRS}
+        "${PROJECT_SOURCE_DIR}/include"
+)
+
+# 链接所需的库
+target_link_libraries(trt_engine_test PRIVATE
+        ${CUDA_LIBRARIES}
+        "${SIMPLE_CUDA_TOOLKITS_LIB}/libsimplecuda.a"
+        ${TENSORRT_LIBS}
+        ${OpenCV_LIBRARIES}
+)

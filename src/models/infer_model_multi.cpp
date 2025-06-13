@@ -31,7 +31,7 @@ InferModelBaseMulti::InferModelBaseMulti(
     }
 
     // 分配输入/输出 Buffer
-    if (!allocateBufsForTrtEngine(g_input_defs, g_output_defs)) {
+    if (!allocateBufForTrtEngine(g_input_defs, g_output_defs)) {
         LOG_ERROR("InferModelBase", "Failed to allocate buffers");
         exit(EXIT_FAILURE);
     }
@@ -42,30 +42,6 @@ InferModelBaseMulti::~InferModelBaseMulti() {
     g_map_trtTensors.clear();
     cudaStreamDestroy(g_stream);
 }
-
-// bool InferModelBaseMulti::inference() {
-//     // 构造输入列表
-//     std::vector<Tensor<float>> inputs;
-//     inputs.reserve(g_input_defs.size());
-//     for (const auto& def : g_input_defs) {
-//         inputs.emplace_back(g_map_trtTensors[def.name]);
-//     }
-
-//     // 构造输出列表
-//     std::vector<Tensor<float>> outputs;
-//     outputs.reserve(g_output_defs.size());
-//     for (const auto& def : g_output_defs) {
-//         outputs.emplace_back(g_map_trtTensors[def.name]);
-//     }
-
-//     // 执行推理
-//     if (!g_ptr_engine->infer(inputs, outputs, g_stream)) {
-//         LOG_ERROR("InferModelBase", "Inference failed");
-//         return false;
-//     }
-//     cudaStreamSynchronize(g_stream);
-//     return true;
-// }
 
 bool InferModelBaseMulti::inference() {
     // 构造“指针列表”而非拷贝
@@ -121,7 +97,7 @@ bool InferModelBaseMulti::loadEngine(
     return true;
 }
 
-bool InferModelBaseMulti::allocateBufsForTrtEngine(
+bool InferModelBaseMulti::allocateBufForTrtEngine(
         const std::vector<TensorDefinition>& input_defs,
         const std::vector<TensorDefinition>& output_defs)
 {
@@ -151,14 +127,14 @@ void InferModelBaseMulti::copyCpuDataToInputBuffer(
     if (dims.empty() || dims[0] <= 0) {
         throw std::runtime_error("Invalid tensor dimensions for " + tensor_name);
     }
-    size_t total = tensor.elements();
-    size_t batch_count = static_cast<size_t>(dims[0]);
-    size_t single = total / batch_count;
+    auto total = tensor.elements();
+    auto batch_count = static_cast<size_t>(dims[0]);
+    auto single = total / batch_count;
 
     if (input_data.size() != single) {
         throw std::runtime_error("Input data size mismatch for " + tensor_name);
     }
-    size_t offset = static_cast<size_t>(batch_idx) * single;
+    auto offset = static_cast<size_t>(batch_idx) * single;
 
 #if DEBUG
     {
@@ -189,14 +165,14 @@ void InferModelBaseMulti::copyCpuDataFromOutputBuffer(
     if (dims.empty() || dims[0] <= 0) {
         throw std::runtime_error("Invalid tensor dimensions for " + tensor_name);
     }
-    size_t total = tensor.elements();
-    size_t batch_count = static_cast<size_t>(dims[0]);
-    size_t single = total / batch_count;
+    auto total = tensor.elements();
+    auto batch_count = static_cast<size_t>(dims[0]);
+    auto single = total / batch_count;
 
     if (output_data.size() != single) {
         throw std::runtime_error("Output data size mismatch for " + tensor_name);
     }
-    size_t offset = static_cast<size_t>(batch_idx) * single;
+    auto offset = static_cast<size_t>(batch_idx) * single;
 
     cudaMemcpy(
             output_data.data(),
@@ -217,49 +193,37 @@ void InferModelBaseMulti::copyCpuDataFromOutputBuffer(
 #endif
 }
 
+// 获取指定张量在 CUDA 上指定 batch 索引的指针（const 版本）
+const float* InferModelBaseMulti::accessCudaBufByBatchIdx(const std::string& tensor_name, int batch_idx) const
+{
+    // 检查张量映射表是否为空
+    if (g_map_trtTensors.empty()) {
+        throw std::runtime_error("No tensors available in g_map_trtTensors");
+    }
 
-//void InferModelBaseMulti::copyCpuDataToInputBuffer(
-//        const std::string& tensor_name,
-//        const std::vector<float>& input_data,
-//        int batch_idx)
-//{
-//    auto& tensor = g_map_trtTensors.at(tensor_name);
-//    auto dims = tensor.getDims();
-//    size_t total = tensor.elements();
-//    size_t batch_count = static_cast<size_t>(dims[0]);
-//    size_t single = total / batch_count;
-//
-//    if (input_data.size() != single) {
-//        throw std::runtime_error("Input data size mismatch for " + tensor_name);
-//    }
-//    size_t offset = static_cast<size_t>(batch_idx) * single;
-//    cudaMemcpy(
-//            tensor.ptr() + offset,
-//            input_data.data(),
-//            sizeof(float) * single,
-//            cudaMemcpyHostToDevice
-//    );
-//}
-//
-//void InferModelBaseMulti::copyCpuDataFromOutputBuffer(
-//        const std::string& tensor_name,
-//        std::vector<float>& output_data,
-//        int batch_idx)
-//{
-//    auto& tensor = g_map_trtTensors.at(tensor_name);
-//    auto dims = tensor.getDims();
-//    size_t total = tensor.elements();
-//    size_t batch_count = static_cast<size_t>(dims[0]);
-//    size_t single = total / batch_count;
-//
-//    if (output_data.size() != single) {
-//        throw std::runtime_error("Output data size mismatch for " + tensor_name);
-//    }
-//    size_t offset = static_cast<size_t>(batch_idx) * single;
-//    cudaMemcpy(
-//            output_data.data(),
-//            tensor.ptr() + offset,
-//            sizeof(float) * single,
-//            cudaMemcpyDeviceToHost
-//    );
-//}
+    // 查找指定名称的张量
+    auto it = g_map_trtTensors.find(tensor_name);
+    if (it == g_map_trtTensors.end()) {
+        throw std::runtime_error("Tensor " + tensor_name + " not found");
+    }
+    const auto& tensor = it->second;
+    const auto& dims = tensor.getDims();
+
+    // 检查张量维度是否合法
+    if (dims.empty() || dims[0] <= 0) {
+        throw std::runtime_error("Invalid tensor dimensions for " + tensor_name);
+    }
+
+    // 计算每个 batch 的元素数量
+    auto total = tensor.elements();
+    auto batch_count = static_cast<size_t>(dims[0]);
+    auto single = total / batch_count;
+
+    // 检查 batch 索引是否越界
+    if (batch_idx < 0 || static_cast<size_t>(batch_idx) >= batch_count) {
+        throw std::out_of_range("Batch index out of range for " + tensor_name);
+    }
+
+    // 返回指定 batch 的 CUDA 指针
+    return tensor.ptr() + static_cast<size_t>(batch_idx) * single;
+}
