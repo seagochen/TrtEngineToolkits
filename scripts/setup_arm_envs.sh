@@ -4,8 +4,8 @@
 set -e
 
 # Variables
-TARGET_DIR="$HOME/Projects/Serverlet"
-LINK_NAME="/opt/Serverlet"
+TARGET_DIR="$HOME/projects/TrtEngineToolkits"
+LINK_NAME="/opt/TrtEngineToolkits"
 
 # Function to print messages
 print_message() {
@@ -54,24 +54,6 @@ install_opencv() {
     sudo apt install -y libopencv-dev
 }
 
-# Function to install Protobuf
-install_protobuf() {
-    print_message "Installing Protobuf..."
-    sudo apt install -y protobuf-compiler libprotobuf-dev
-}
-
-# Function to install YAML library
-install_yaml() {
-    print_message "Installing YAML library..."
-    sudo apt install -y libyaml-cpp-dev
-}
-
-# Function to install Mosquitto
-install_mosquitto() {
-    print_message "Installing Mosquitto..."
-    sudo apt install -y mosquitto mosquitto-clients libmosquitto-dev
-}
-
 # Function to install Jetson Stats
 install_jetson_stats() {
     # 更新系统包并安装 jetson-stats
@@ -105,26 +87,6 @@ check_versions() {
     else
         echo "OpenCV is not installed."
     fi
-
-    # Protobuf
-    if command -v protoc &> /dev/null; then
-        protobuf_version=$(protoc --version)
-        echo "Protobuf version: $protobuf_version"
-    else
-        echo "Protobuf is not installed."
-    fi
-
-    # YAML
-    yaml_version=$(dpkg -s libyaml-cpp-dev 2>/dev/null | grep '^Version:')
-    if [ -n "$yaml_version" ]; then
-        echo "YAML version: $yaml_version"
-    else
-        echo "YAML library is not installed."
-    fi
-
-    # Mosquitto
-    mosquitto_version=$(mosquitto -h 2>/dev/null | grep -i version || echo "Mosquitto is not installed.")
-    echo "Mosquitto version: $mosquitto_version"
 }
 
 # Function to create a symbolic link in /opt
@@ -157,9 +119,6 @@ main() {
     update_packages
     install_dependencies
     install_opencv
-    install_protobuf
-    install_yaml
-    install_mosquitto
     install_jetson_stats
     check_versions
 
