@@ -5,13 +5,12 @@
 #include <vector>
 #include "serverlet/c_yolo_v8_apis.h"
 #include "serverlet/models/yolo/infer_yolo_v8.h"
-#include "serverlet/models/yolo/infer_yolo_v8_pose.h"
 
 #include "serverlet/utils/logger.h"
 #include "serverlet/models/yolo/nms.hpp"
 
 // Instead of void*, use the base class pointer
-InferModelBase* vptr_model = nullptr;
+InferModelBaseMulti* vptr_model = nullptr;
 
 // Use this flag to indicate whether the model is yolo-pose
 bool b_model_pose = false;
@@ -38,23 +37,24 @@ extern "C" {
     */
     void c_yolo_init(const char *model_path, bool b_use_pose) {
 
-        if (b_use_pose) {
-            std::vector local_input_params = {4, 3, 640, 640};
-            std::vector local_output_params = {4, 56, 8400};
-            // 当使用姿态检测时，创建 InferYoloV8Pose 对象
-            vptr_model = new InferYoloV8Pose(model_path,
-                                             "images", local_input_params,
-                                             "output0", local_output_params);
-            LOG_INFO("C_API::Initialized", "YoloV8 Pose Detection model loaded successfully");
-        } else {
-            std::vector local_input_params = {4, 3, 640, 640};
-            std::vector local_output_params = {4, 84, 8400};
-            // 否则，创建 InferYoloV8Obj 对象
-            vptr_model = new InferYoloV8Obj(model_path,
-                                            "images", local_input_params,
-                                            "output0", local_output_params);
-            LOG_INFO("C_API::Initialized", "YoloV8 Object Detection model loaded successfully");
-        }
+        // TODO
+        // if (b_use_pose) {
+        //     std::vector local_input_params = {4, 3, 640, 640};
+        //     std::vector local_output_params = {4, 56, 8400};
+        //     // 当使用姿态检测时，创建 InferYoloV8Pose 对象
+        //     vptr_model = new InferYoloV8Pose(model_path,
+        //                                      "images", local_input_params,
+        //                                      "output0", local_output_params);
+        //     LOG_INFO("C_API::Initialized", "YoloV8 Pose Detection model loaded successfully");
+        // } else {
+        //     std::vector local_input_params = {4, 3, 640, 640};
+        //     std::vector local_output_params = {4, 84, 8400};
+        //     // 否则，创建 InferYoloV8Obj 对象
+        //     vptr_model = new InferYoloV8Obj(model_path,
+        //                                     "images", local_input_params,
+        //                                     "output0", local_output_params);
+        //     LOG_INFO("C_API::Initialized", "YoloV8 Object Detection model loaded successfully");
+        // }
 
         // フラグを記録
         b_model_pose = b_use_pose;
@@ -157,7 +157,7 @@ extern "C" {
         }
 
         // Perform inference
-        return static_cast<InferModelBase*>(vptr_model)->inference();
+        return static_cast<InferModelBaseMulti*>(vptr_model)->inference();
     }
 
     /**
@@ -185,8 +185,8 @@ extern "C" {
             auto results = model->postprocess(n_index, f_clsThreshold);
 
             // Use NMS to filter the results
-            results_of_poses = NMS(results, f_nmsThreshold);
-
+            // results_of_poses = NMS(results, f_nmsThreshold);
+            // TODO
             return static_cast<int>(results_of_poses.size());
 
         } else {
@@ -197,8 +197,8 @@ extern "C" {
             auto results = model->postprocess(n_index, f_clsThreshold);
 
             // Use NMS to filter the results
-            results_of_objects = NMS(results, f_nmsThreshold);
-
+            // results_of_objects = NMS(results, f_nmsThreshold);
+            // TODO
             return static_cast<int>(results_of_objects.size());
         }
     }

@@ -3,7 +3,7 @@
 
 #include <vector>
 #include "serverlet/models/infer_model_multi.h"
-#include "yolo_def.h"
+#include "yolo_dstruct.h"
 
 
 class InferYoloV8Obj final: public InferModelBaseMulti {
@@ -12,6 +12,9 @@ public:
     // engine_path: TensorRT 引擎文件路径
     // maximum_batch: 最大 1<= batch <=8
     explicit InferYoloV8Obj(const std::string& engine_path, int maximum_batch = 1);
+
+    // Destructor
+    ~InferYoloV8Obj() override;
 
     // Preprocess the image
     void preprocess(const cv::Mat& image, int batchIdx) override;
@@ -25,6 +28,9 @@ private:
     int g_int_inputHeight;      // Input height
     int g_int_inputChannels;    // Input channels
     int g_int_outputFeatures;   // Number of output features
+    int g_int_outputSamples;    // Number of output samples
+
+    std::vector<float> g_vec_output; // Output buffer for postprocessing
 };
 
 
@@ -34,6 +40,9 @@ public:
     // engine_path: TensorRT 引擎文件路径
     // maximum_batch: 最大 1<= batch <=8
     explicit InferYoloV8Pose(const std::string& engine_path, int maximum_batch = 1);
+
+    // Destructor
+    ~InferYoloV8Pose() override;
 
     // Preprocess the image
     void preprocess(const cv::Mat& image, int batchIdx) override;
@@ -47,19 +56,9 @@ private:
     int g_int_inputHeight;      // Input height
     int g_int_inputChannels;    // Input channels
     int g_int_outputFeatures;   // Number of output features
+    int g_int_outputSamples;    // Number of output samples
+
+    std::vector<float> g_vec_output; // Output buffer for postprocessing
 };
-
-
-/**
- * @brief 处理 Yolov8 模型的输出结果
- * 
- * @param cudaOutput CUDA的输出结果指针
- * @param results    存储处理后的结果
- * @param batchIdx   批次索引
- * @param cls        分类阈值
- * @param detectionMode 是否为检测模式 * 
- */
-void postprocessYoloV8(const float* cudaOutput, std::vector<std::vector<float>>& results, int batchIdx,
-    float cls, bool detectionMode);
 
 #endif //INFER_YOLO_V8_H

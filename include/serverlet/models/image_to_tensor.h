@@ -2,8 +2,8 @@
 // Created by user on 6/13/25.
 //
 
-#ifndef IMAGE_UTILS_H
-#define IMAGE_UTILS_H
+#ifndef IMAGE_TO_TENSOR_H
+#define IMAGE_TO_TENSOR_H
 
 #include <opencv2/opencv.hpp>
 #include <vector>
@@ -18,6 +18,6 @@
  * @param stdv 每个通道的标准差，用于归一化
  * @param is_rgb 是否将图像转换为 RGB 格式（默认是 BGR 格式）
  */
-void cvtImgToCudaTensor(cv::Mat image,  float* device_ptr, std::vector<int> target_dims, std::vector<float>& mean, std::vector<float>& stdv, bool is_rgb);
+void sct_img_to_tensor(cv::Mat image,  float* device_ptr, std::vector<int> target_dims, std::vector<float>& mean, std::vector<float>& stdv, bool is_rgb);
 
-#endif //IMAGE_UTILS_H
+#endif //IMAGE_TO_TENSOR_H

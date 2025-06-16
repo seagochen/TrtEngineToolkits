@@ -8,76 +8,88 @@
 
 #include <algorithm>
 #include <vector>
-#include "yolo_def.h"
+#include "yolo_dstruct.h"
 
 // 快速计算IoU
 template<typename T>
-float IoU(const T& a, const T& b) {
-    int interLeft = std::max(a.lx, b.lx);
-    int interTop = std::max(a.ly, b.ly);
-    int interRight = std::min(a.rx, b.rx);
-    int interBottom = std::min(a.ry, b.ry);
+float iou(const T& a, const T& b) {
 
-    int interArea = std::max(0, interRight - interLeft + 1) * std::max(0, interBottom - interTop + 1);
+    // 分别计算两个矩形的交集区域
+    const int inter_left = std::max(a.lx, b.lx);
+    const int inter_top = std::max(a.ly, b.ly);
+    const int inter_right = std::min(a.rx, b.rx);
+    const int inter_bottom = std::min(a.ry, b.ry);
 
-    int areaA = (a.rx - a.lx + 1) * (a.ry - a.ly + 1);
-    int areaB = (b.rx - b.lx + 1) * (b.ry - b.ly + 1);
+    // 计算交集区域的面积
+    int inter_area = std::max(0, inter_right - inter_left + 1) * std::max(0, inter_bottom - inter_top + 1);
 
-    float unionArea = static_cast<float>(areaA + areaB - interArea) + 1e-6f;
-    return unionArea > 0 ? static_cast<float>(interArea) / unionArea : 0.0f;
+    // 如果交集区域的面积为0，则返回0
+    if (inter_area <= 0) {
+        return 0.0f;
+    }
+
+    // 计算两个矩形的面积
+    int area_a = (a.rx - a.lx + 1) * (a.ry - a.ly + 1);
+    int area_b = (b.rx - b.lx + 1) * (b.ry - b.ly + 1);
+
+    // 计算并集区域的面积
+    float union_area = static_cast<float>(area_a + area_b - inter_area) + 1e-6f;
+    
+    // 返回交并比
+    return static_cast<float>(inter_area) / union_area;
 }
+
+
+// 检查类是否具有成员变量 cls
+template <typename T, typename = void>
+struct HasClassMember : std::false_type {};
+
+template <typename T>
+struct HasClassMember<T, std::void_t<decltype(std::declval<T>().cls)>> : std::true_type {};
 
 
 // NMS 核心函数
-inline std::vector<Yolo> NMS(const std::vector<Yolo>& boxes, float iouThreshold) {
+template<typename T>
+std::vector<T> nms(const std::vector<T>& boxes, float iouThreshold) {
     // 1. 根据置信度排序
-    std::vector<Yolo> sortedBoxes = boxes;
-    std::sort(sortedBoxes.begin(), sortedBoxes.end(), [](const Yolo& a, const Yolo& b) {
+    std::vector<T> sortedBoxes = boxes;
+    std::sort(sortedBoxes.begin(), sortedBoxes.end(), [](const T& a, const T& b) {
         return a.conf > b.conf;
     });
 
-    std::vector<Yolo> result;
+    std::vector<T> result;
 
     // 2. 遍历候选框
-    std::vector<bool> suppressed(sortedBoxes.size(), false);
+    std::vector<bool> suppressed(sortedBoxes.size(), false); // 创建一个长度为 sortedBoxes.size() 的布尔向量，初始值为 false
+
+    // 3. 遍历已排序的候选框，对每个框进行非极大值抑制
     for (size_t i = 0; i < sortedBoxes.size(); ++i) {
+
+        // 如果当前框已经被抑制，则跳过
         if (suppressed[i]) continue;
 
+        // 将当前框添加到结果中
         result.push_back(sortedBoxes[i]);
 
         for (size_t j = i + 1; j < sortedBoxes.size(); ++j) {
+
+            // 如果当前框已经被抑制，则跳过
             if (suppressed[j]) continue;
 
-            if (sortedBoxes[i].cls == sortedBoxes[j].cls && IoU<Yolo>(sortedBoxes[i], sortedBoxes[j]) > iouThreshold) {
-                suppressed[j] = true;
+            // 检查当前框和下一个框的 IoU
+            // 如果是同一类，则计算 IoU
+            // 否则直接跳过
+            // 检查是否有类成员
+            // 如果没有类成员，则默认所有框都是同一类
+            // 如果有类成员，则检查类是否相同
+            // 这里假设 T 有成员变量 cls，表示类别
+            // 如果没有类成员，则默认所有框都是同一类
+            bool same_class = true;
+            if constexpr (HasClassMember<T>::value) {
+                same_class = (sortedBoxes[i].cls == sortedBoxes[j].cls);
             }
-        }
-    }
-
-    return result;
-}
-
-// 对于 YoloPose 的 NMS
-inline std::vector<YoloPose> NMS(const std::vector<YoloPose>& poses, float iouThreshold) {
-    // 1. 根据置信度排序
-    std::vector<YoloPose> sortedPoses = poses;
-    std::sort(sortedPoses.begin(), sortedPoses.end(), [](const YoloPose& a, const YoloPose& b) {
-        return a.conf > b.conf;
-    });
-
-    std::vector<YoloPose> result;
-
-    // 2. 遍历候选框
-    std::vector<bool> suppressed(sortedPoses.size(), false);
-    for (size_t i = 0; i < sortedPoses.size(); ++i) {
-        if (suppressed[i]) continue;
-
-        result.push_back(sortedPoses[i]);
-
-        for (size_t j = i + 1; j < sortedPoses.size(); ++j) {
-            if (suppressed[j]) continue;
-
-            if (IoU<YoloPose>(sortedPoses[i], sortedPoses[j]) > iouThreshold) {
+            
+            if (same_class && iou<T>(sortedBoxes[i], sortedBoxes[j]) > iouThreshold) {
                 suppressed[j] = true;
             }
         }

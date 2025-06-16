@@ -2,7 +2,6 @@
 // Created by user on 6/13/25.
 //
 
-#include "serverlet/utils/image_utils.h"
 #include <cuda_runtime.h>
 #include <opencv2/opencv.hpp>
 #include <vector>
@@ -10,6 +9,7 @@
 #include <simple_cuda_toolkits/tsutils/permute_3D.h>
 #include <simple_cuda_toolkits/vision/normalization.h>
 
+#include "serverlet/models/image_to_tensor.h"
 
 /**
  * @brief 将 OpenCV 图像转换为 CUDA 张量格式
@@ -21,9 +21,9 @@
  * @param stdv 每个通道的标准差，用于归一化
  * @param is_rgb 是否将图像转换为 RGB 格式（默认是 BGR 格式）
  */
-void cvtImgToCudaTensor(cv::Mat image, float* device_ptr, std::vector<int> target_dims, std::vector<float>& mean, std::vector<float>& stdv, bool is_rgb) {
+void sct_img_to_tensor(cv::Mat image, float* device_ptr, std::vector<int> target_dims, std::vector<float>& mean, std::vector<float>& stdv, bool is_rgb) {
 
-    // 1. 创建一个与目标相同的CUDA Memory
+    // 1. 创建两个与目标相同的CUDA Memory
     float* cuda_temp_tensor0 = nullptr;
     float* cuda_temp_tensor1 = nullptr;
     size_t total_size = target_dims[0] * target_dims[1] * target_dims[2];
@@ -80,7 +80,7 @@ void cvtImgToCudaTensor(cv::Mat image, float* device_ptr, std::vector<int> targe
     }
     cudaMemcpy(device_ptr, cuda_temp_tensor0, total_size * sizeof(float), cudaMemcpyDeviceToDevice);
 
-    // 8. 释放临时CUDA内存
+    // 0. 释放临时CUDA内存
     cudaFree(cuda_temp_tensor0);
     cudaFree(cuda_temp_tensor1);
 }
