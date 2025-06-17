@@ -3,7 +3,7 @@
 
 #include <vector>
 #include "serverlet/models/infer_model_multi.h"
-#include "yolo_dstruct.h"
+#include "serverlet/models/common/yolo_dstruct.h"
 
 
 class InferYoloV8Obj final: public InferModelBaseMulti {

@@ -7,7 +7,7 @@
 #include "serverlet/models/yolo/infer_yolo_v8.h"
 
 #include "serverlet/utils/logger.h"
-#include "serverlet/models/yolo/nms.hpp"
+#include "serverlet/models/common/nms.hpp"
 
 // Instead of void*, use the base class pointer
 InferModelBaseMulti* vptr_model = nullptr;

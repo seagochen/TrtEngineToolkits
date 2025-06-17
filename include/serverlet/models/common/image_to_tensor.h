@@ -7,6 +7,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include "serverlet/models/common/yolo_dstruct.h"
 
 /**
  * @brief 将 OpenCV 图像转换为 CUDA 张量格式，并可选地进行归一化。
@@ -37,5 +38,27 @@ void sct_image_to_cuda_tensor(
     const std::vector<float>& mean = {}, // Default empty vector means no mean normalization
     const std::vector<float>& stdv = {}  // Default empty vector means no stdv normalization
 );
+
+
+/**
+ * @brief 将输入的 xywh 格式的边界框转换为 xyxy 格式，并进行非极大值抑制。
+ *
+ * 该函数将输入的边界框从 [x, y, w, h] 转换为 [x1, y1, x2, y2] 格式，
+ * 并根据给定的 iou_threshold 进行非极大值抑制，输出结果为 Yolo 结构体数组。
+ *
+ * @param input 输入的边界框数据，格式为 [x, y, w, h]。
+ * @param output 输出的 Yolo 结构体数组，包含转换后的边界框和置信度。
+ * @param iou_threshold 非极大值抑制的 IOU 阈值。
+ * @param features 输入特征数量。
+ * @param samples 输入样本数量。
+ */
+void host_xywh_to_xyxy(
+    const std::vector<float>& input,
+    std::vector<Yolo>& output,
+    float iou_threshold,
+    int features,
+    int samples
+);
+
 
 #endif //IMAGE_TO_TENSOR_H

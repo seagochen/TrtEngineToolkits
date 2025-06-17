@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <vector>
-#include "yolo_dstruct.h"
 
 // 快速计算IoU
 template<typename T>

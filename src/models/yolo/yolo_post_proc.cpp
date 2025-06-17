@@ -3,11 +3,11 @@
 //
 
 #include "serverlet/models/yolo/yolo_post_proc.h"
-#include "serverlet/models/yolo/nms.hpp"
+#include "serverlet/models/common/nms.hpp"
 
 #include  <cuda_runtime.h>
 
-#include <simple_cuda_toolkits/bbox/suppress.h>
+#include <simple_cuda_toolkits/tsutils/filter.h>
 #include <simple_cuda_toolkits/tsutils/maxmin.h>
 #include <simple_cuda_toolkits/matrix/matrix.h>
 #include <simple_cuda_toolkits/tensor_utils.hpp>
@@ -50,7 +50,8 @@ int sct_yolo_post_proc(const float* ptr_device, std::vector<float> output,
         sctArgmax(ptr_device_temp1, ptr_device_temp0, features, samples, 4, features, 5, 4);
 
         // 为了统一后续处理，将 ptr_device_temp0 的结果拷贝到 ptr_device_temp1
-        sctCudaMemcpyDtoD(ptr_device_temp0, ptr_device_temp1, total_size);
+        // sctCudaMemcpyDtoD(ptr_device_temp0, ptr_device_temp1, total_size);
+        std::swap(ptr_device_temp0, ptr_device_temp1); // 交换指针，速度更快
     }
 
     // 5. 对计算结果进行抑制

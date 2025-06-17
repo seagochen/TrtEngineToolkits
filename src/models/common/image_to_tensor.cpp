@@ -134,3 +134,14 @@ void sct_image_to_cuda_tensor(
     cudaFree(cuda_temp_in); // This will free the one that current_data_dev (or next_output_dev) pointed to after the last swap
     cudaFree(cuda_temp_out); // This will free the other one
 }
+
+
+void host_xywh_to_xyxy(
+    const std::vector<float>& input,
+    std::vector<Yolo>& output,
+    float iou_threshold,
+    int features,
+    int samples)
+{
+
+};

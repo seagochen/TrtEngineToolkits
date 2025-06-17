@@ -9,7 +9,7 @@
 #include <vector>
 #include "serverlet/utils/logger.h"
 #include "serverlet/models/yolo/infer_yolo_v8.h"
-#include "serverlet/models/yolo/nms.hpp"
+#include "serverlet/models/common/nms.hpp"
 #include "serverlet/models/yolo/yolo_post_proc.h"
 #include "serverlet/models/common/image_to_tensor.h"
 
