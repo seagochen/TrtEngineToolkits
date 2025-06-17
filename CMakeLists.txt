@@ -205,3 +205,4 @@ target_link_libraries(trt_engine_test PRIVATE
 # 设置编译选项
 target_compile_options(trt_engine_test PRIVATE
         ${OpenMP_FLAGS} # 添加 OpenMP 编译选项
+)

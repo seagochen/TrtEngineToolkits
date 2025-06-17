@@ -44,11 +44,15 @@ int main()
     model.inference();
 
     // Get the results
-    model.postprocess(0);
-    model.postprocess(1);
-    model.postprocess(2);
-    model.postprocess(3);
+    auto res1 = model.postprocess(0, 0.3, 0.2);
+    auto res2 = model.postprocess(1, 0.3, 0.2);
+    auto res3 = model.postprocess(2, 0.3, 0.2);
+    auto res4 = model.postprocess(3, 0.3, 0.2);
 
-    std::cout << "Hello, world" << std::endl;
+    std::cout << "Results for image 1: " << res1.size() << " detections." << std::endl;
+    std::cout << "Results for image 2: " << res2.size() << " detections." << std::endl;
+    std::cout << "Results for image 3: " << res3.size() << " detections." << std::endl;
+    std::cout << "Results for image 4: " << res4.size() << " detections." << std::endl;
+
     return 0;
 }

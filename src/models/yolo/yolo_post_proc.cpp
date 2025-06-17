@@ -17,7 +17,7 @@
 
 
 int sct_yolo_post_proc(const float* ptr_device, std::vector<float> output,
-                                 int features, int samples, float cls, bool b_use_pose)
+                                 int features, int samples, float cls, bool use_pose)
 {
 
     // 1. 创建两个与目标相同的CUDA缓存
@@ -43,8 +43,8 @@ int sct_yolo_post_proc(const float* ptr_device, std::vector<float> output,
     // [1, features, samples] -> [1, samples, features]
     sctMatrixTranspose(ptr_device_temp0, ptr_device_temp1, features, samples);
 
-    // 4. 当 b_use_pose 为 false 时，执行分类处理
-    if (!b_use_pose)
+    // 4. 当 use_pose 为 false 时，执行分类处理
+    if (!use_pose)
     {
         // 算出每个样本的cls index，并把其分类id放在#5，概率放在#4（满足后续YOLO的其他模块处理）
         sctArgmax(ptr_device_temp1, ptr_device_temp0, features, samples, 4, features, 5, 4);
@@ -72,8 +72,8 @@ int sct_yolo_post_proc(const float* ptr_device, std::vector<float> output,
     }
 
     // 6. 将结果拷贝回本地，现在结果已经全部存储在 ptr_device_temp0 中
-    // 先确定 output 的大小是否 >= results * features, 如果 b_use_pose 为 false，则 features 为 6，否则为 features
-    int output_feats = b_use_pose ? features : 6; // 6 是 YOLO 的标准输出格式
+    // 先确定 output 的大小是否 >= results * features, 如果 use_pose 为 false，则 features 为 6，否则为 features
+    int output_feats = use_pose ? features : 6; // 6 是 YOLO 的标准输出格式
     if (output.size() < results * output_feats)
     {
         // 重新分配空间

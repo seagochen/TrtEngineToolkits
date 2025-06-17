@@ -20,7 +20,7 @@ public:
     void preprocess(const cv::Mat& image, int batchIdx) override;
 
     // Postprocess the output
-    std::vector<Yolo> postprocess(int batchIdx=0, float cls=0.4);
+    [[nodiscard]] std::vector<Yolo> postprocess(int batchIdx=0, float cls=0.4, float iou=0.5) const;
 
 private:
     int g_int_maximumBatch;     // Maximum number of batch
@@ -48,7 +48,7 @@ public:
     void preprocess(const cv::Mat& image, int batchIdx) override;
 
     // Postprocess the output
-    std::vector<YoloPose> postprocess(int batchIdx=0, float cls=0.4);
+    [[nodiscard]] std::vector<YoloPose> postprocess(int batchIdx=0, float cls=0.4, float iou=0.5) const;
 
 private:
     int g_int_maximumBatch;     // Maximum number of batch

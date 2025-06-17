@@ -16,10 +16,10 @@
  * @param features 特征数量
  * @param samples 样本数量
  * @param cls 分类阈值
- * @param b_use_pose 是否使用姿态估计
+ * @param use_pose 是否使用姿态估计
  * @return 返回处理后的结果数量
  */
 int sct_yolo_post_proc(const float* ptr_device, std::vector<float> output,
-                                 int features, int samples, float cls, bool b_use_pose = false);
+                                 int features, int samples, float cls, bool use_pose = false);
 
 #endif //SCT_YOLO_POST_PROCESS_H

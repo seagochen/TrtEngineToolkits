@@ -7,37 +7,34 @@
 #include <vector>
 
 #include <simple_cuda_toolkits/tsutils/permute_3D.h>
-#include <simple_cuda_toolkits/vision/normalization.h>
+#include <simple_cuda_toolkits/vision/image_ops.h>
 
 #include "serverlet/models/common/image_to_tensor.h"
+#include "serverlet/models/common/yolo_dstruct.h"
 #include <stdexcept> // For std::runtime_error
 
 void sct_image_to_cuda_tensor(
-    cv::Mat image,
+    const cv::Mat& image,
     float* device_ptr,
-    std::vector<int> target_dims,
+    int target_height, // 目标高度
+    int target_width,  // 目标宽度
+    int target_channels, // 目标通道数，通常为 3（RGB）
     bool is_rgb,
     const std::vector<float>& mean,
     const std::vector<float>& stdv)
 {
-    // Basic input validation
+    // 检查输入参数
     if (image.empty()) {
         throw std::runtime_error("Input image is empty.");
     }
     if (device_ptr == nullptr) {
         throw std::runtime_error("Device pointer is null. Please ensure it is allocated before calling this function.");
     }
-    if (target_dims.size() != 3) {
-        throw std::runtime_error("target_dims must have 3 elements: [H, W, C].");
-    }
 
-    auto height = target_dims[0];
-    auto width = target_dims[1];
-    auto channels = target_dims[2];
-    size_t total_size = static_cast<size_t>(height) * width * channels;
+    // 总大小计算
+    size_t total_size = static_cast<size_t>(target_height) * target_width * target_channels;
 
-    // Allocate temporary CUDA memory
-    // We need two temporary tensors: one for input data to normalization/permute, one for output
+    // 分配 CUDA 内存
     float* cuda_temp_in = nullptr;
     float* cuda_temp_out = nullptr;
 
@@ -52,32 +49,33 @@ void sct_image_to_cuda_tensor(
         throw std::runtime_error("Failed to allocate CUDA memory for cuda_temp_out: " + std::string(cudaGetErrorString(err_out)));
     }
 
-    // 1. Resize image to target dimensions
+    // 1. 把图像调整为目标尺寸
     cv::Mat resized;
-    cv::resize(image, resized, cv::Size(width, height), 0, 0, cv::INTER_LINEAR);
+    cv::resize(image, resized, cv::Size(target_width, target_height), 0, 0, cv::INTER_LINEAR);
     if (resized.empty()) {
         cudaFree(cuda_temp_in);
         cudaFree(cuda_temp_out);
         throw std::runtime_error("Failed to resize image.");
     }
-    // Check channel count match
-    if (resized.channels() != channels) {
+
+    // 检查调整后的图像通道数是否与目标尺寸的通道数匹配
+    if (resized.channels() != target_channels) {
         cudaFree(cuda_temp_in);
         cudaFree(cuda_temp_out);
         throw std::runtime_error("Resized image channel count (" + std::to_string(resized.channels()) + 
-                                 ") does not match target dimensions' channels (" + std::to_string(channels) + ").");
+                                 ") does not match target dimensions' channels (" + std::to_string(target_channels) + ").");
     }
 
-    // 2. Convert BGR to RGB if required and channels is 3
-    if (is_rgb && channels == 3) {
+    // 2. 如果需要，将图像从 BGR 转换为 RGB
+    if (is_rgb && target_channels == 3) {
         cv::cvtColor(resized, resized, cv::COLOR_BGR2RGB);
     }
 
-    // 3. Convert image to float type and normalize to [0, 1]
+    // 3. 将图像转换为浮点格式并归一化到 [0, 1] 范围
     cv::Mat floatImg;
-    resized.convertTo(floatImg, CV_32FC3, 1.0f / 255.0f); // CV_32FC3 assumes 3 channels for output, but `resized.channels()` matters
+    resized.convertTo(floatImg, CV_32FC3, 1.0f / 255.0f);
 
-    // 4. Copy image data to temporary CUDA memory (cuda_temp_in)
+    // 4. 将图像数据从 OpenCV Mat 拷贝到 CUDA 设备内存
     cudaError_t err_memcpy = cudaMemcpy(cuda_temp_in, floatImg.data, total_size * sizeof(float), cudaMemcpyHostToDevice);
     if (err_memcpy != cudaSuccess) {
         cudaFree(cuda_temp_in);
@@ -85,63 +83,118 @@ void sct_image_to_cuda_tensor(
         throw std::runtime_error("cudaMemcpy HostToDevice failed: " + std::string(cudaGetErrorString(err_memcpy)));
     }
 
-    // Determine which tensor holds the "current" data for subsequent operations
-    // `current_data_dev` will point to the input for the next step (normalization or permute)
-    // `next_output_dev` will point to the output for the next step
+    // 确定哪个张量持有“当前”数据以供后续操作使用
+    // `current_data_dev` 指向下一步（归一化或转置）的输入
+    // `next_output_dev` 指向下一步的输出
     float* current_data_dev = cuda_temp_in;
     float* next_output_dev = cuda_temp_out;
 
-    // 5. Apply mean/stdv normalization if parameters are provided
-    // Check if both mean and stdv are provided and non-empty
+    // 5. 如果提供了 mean/stdv 参数则进行归一化
     if (!mean.empty() && !stdv.empty()) {
-        // Ensure mean and stdv vectors match channel count
-        if (mean.size() != channels || stdv.size() != channels) {
+
+        // 检查 mean 和 stdv 的大小是否与通道数匹配
+        if (mean.size() != target_channels || stdv.size() != target_channels) {
             cudaFree(cuda_temp_in);
             cudaFree(cuda_temp_out);
             throw std::runtime_error("Mean and standard deviation vectors must have size equal to channel count.");
         }
-        // Normalize: current_data_dev -> next_output_dev
-        sctNormalizeMeanStd(current_data_dev, next_output_dev, height, width, channels, mean.data(), stdv.data());
-        
-        // Swap roles for the next step: next_output_dev becomes current_data_dev
+
+        // 由于前面已经将元素整体调整为[0, 1]范围，因此当使用std/mean进行归一化时，不对元素执行/255.0f
+        // image[i] = (image[i] - mean[i]) / stdv[i];
+        sctImageSubC3(current_data_dev, next_output_dev,
+            target_height, target_width, mean[0], mean[1], mean[2]);
         std::swap(current_data_dev, next_output_dev);
+
+        sctImageDivC3(current_data_dev, next_output_dev,
+            target_height, target_width, stdv[0], stdv[1], stdv[2]);
+        std::swap(current_data_dev, next_output_dev);
+
     } else if (!mean.empty() || !stdv.empty()) {
-        // Warning if only one of mean/stdv is provided
+        // 警告：仅提供了 mean 或 stdv 其中之一，跳过完整归一化
         std::cerr << "Warning: Only one of mean or stdv is provided for normalization. Skipping full normalization." << std::endl;
-        // In this case, `current_data_dev` remains `cuda_temp_in` and `next_output_dev` remains `cuda_temp_out`
-        // as no normalization was effectively applied that swaps them.
     }
-    // If mean and stdv are both empty, normalization is skipped, `current_data_dev` remains `cuda_temp_in`
 
-    // 6. Permute HWC format (current_data_dev) to CHW format (next_output_dev)
-    // The sctPermute3D_v2 function takes input, output, H, W, C, and permutation axes.
+    // 6. 将 HWC 格式（current_data_dev）转置为 CHW 格式（next_output_dev）
+    // sctPermute3D_v2 函数的参数为输入、输出、H、W、C 以及置换轴顺序。
     // HWC (0, 1, 2) -> CHW (2, 0, 1)
-    sctPermute3D_v2(current_data_dev, next_output_dev, height, width, channels, 2, 0, 1);
+    sctPermute3D_v2(current_data_dev, next_output_dev,
+        target_height, target_width, target_channels,
+        2, 0, 1);
     
-    // After permute, next_output_dev now holds the final CHW data.
-    // Swap again so current_data_dev points to the final result, for consistent cleanup
-    std::swap(current_data_dev, next_output_dev); // current_data_dev now points to the CHW result
+    // 转置后，next_output_dev 现在持有最终的 CHW 数据。
+    // 再次交换，使 current_data_dev 指向最终结果，便于后续统一清理
+    std::swap(current_data_dev, next_output_dev); // current_data_dev 现在指向 CHW 结果
 
-    // 7. Copy the final result from `current_data_dev` to the user-provided `device_ptr`
+    // 7. 将最终结果从 `current_data_dev` 拷贝到用户提供的 `device_ptr`
     cudaError_t err_final_memcpy = cudaMemcpy(device_ptr, current_data_dev, total_size * sizeof(float), cudaMemcpyDeviceToDevice);
     if (err_final_memcpy != cudaSuccess) {
-        cudaFree(cuda_temp_in); // Free both temps before throwing, as they might have been swapped
+        cudaFree(cuda_temp_in); // 抛出异常前释放两个临时内存，因为它们可能已被交换
         cudaFree(cuda_temp_out);
         throw std::runtime_error("cudaMemcpy DeviceToDevice failed: " + std::string(cudaGetErrorString(err_final_memcpy)));
     }
 
-    // 8. Free temporary CUDA memory
-    cudaFree(cuda_temp_in); // This will free the one that current_data_dev (or next_output_dev) pointed to after the last swap
-    cudaFree(cuda_temp_out); // This will free the other one
+    // 8. 释放临时 CUDA 内存
+    cudaFree(cuda_temp_in);
+    cudaFree(cuda_temp_out);
 }
 
 
-void host_xywh_to_xyxy(
-    const std::vector<float>& input,
-    std::vector<Yolo>& output,
-    float iou_threshold,
-    int features,
-    int samples)
-{
+#include <omp.h> // 引入 OpenMP 头文件
 
-};
+
+void host_xywh_to_xyxy_yolo(const std::vector<float>& input, std::vector<Yolo>& output,
+                            int features, int samples, float target_width, float target_height)
+{
+    output.clear();
+    output.resize(samples); // 预分配内存，确保线程安全
+
+    #pragma omp parallel for
+    for (int i = 0; i < samples; ++i) {
+        // 计算边界框坐标
+        const float cx = input[i * features + 0] * target_width;
+        const float cy = input[i * features + 1] * target_height;
+        const float w = input[i * features + 2] * target_width;
+        const float h = input[i * features + 3] * target_height;
+
+        Yolo& yolo = output[i]; // 直接引用 vector 中的元素
+        yolo.conf = input[i * features + 4];
+        yolo.cls = static_cast<int>(input[i * features + 5]);
+        yolo.lx = static_cast<int>(cx - w / 2.0f);
+        yolo.ly = static_cast<int>(cy - h / 2.0f);
+        yolo.rx = static_cast<int>(cx + w / 2.0f);
+        yolo.ry = static_cast<int>(cy + h / 2.0f);
+    }
+}
+
+
+void host_xywh_to_xyxy_pose(const std::vector<float>& input, std::vector<YoloPose>& output,
+                            int features, int samples, float target_width, float target_height)
+{
+    output.clear();
+    output.resize(samples); // 预分配内存，确保线程安全
+
+    #pragma omp parallel for
+    for (int i = 0; i < samples; ++i) {
+        // 计算边界框坐标
+        const float cx = input[i * features + 0] * target_width;
+        const float cy = input[i * features + 1] * target_height;
+        const float w = input[i * features + 2] * target_width;
+        const float h = input[i * features + 3] * target_height;
+
+        YoloPose& yolo_pose = output[i]; // 直接引用 vector 中的元素
+        yolo_pose.conf = input[i * features + 4];
+        yolo_pose.cls = 0; // Pose任务默认类别为0
+        yolo_pose.lx = static_cast<int>(cx - w / 2.0f);
+        yolo_pose.ly = static_cast<int>(cy - h / 2.0f);
+        yolo_pose.rx = static_cast<int>(cx + w / 2.0f);
+        yolo_pose.ry = static_cast<int>(cy + h / 2.0f);
+
+        // 处理17个关键点
+        yolo_pose.pts.resize(17);
+        for (int j = 0; j < 17; ++j) {
+            yolo_pose.pts[j].x = static_cast<int>(input[i * features + 5 + j * 3] * target_width);
+            yolo_pose.pts[j].y = static_cast<int>(input[i * features + 5 + j * 3 + 1] * target_height);
+            yolo_pose.pts[j].conf = input[i * features + 5 + j * 3 + 2];
+        }
+    }
+}

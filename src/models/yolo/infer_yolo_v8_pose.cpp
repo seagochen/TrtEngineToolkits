@@ -2,7 +2,6 @@
 // Created by vipuser on 25-1-6.
 //
 
-#include <simple_cuda_toolkits/vision/normalization.h>
 #include <simple_cuda_toolkits/tsutils/permute_3D.h>
 #include <simple_cuda_toolkits/tensor_utils.hpp>
 
@@ -28,7 +27,7 @@ InferYoloV8Pose::InferYoloV8Pose(
     g_int_outputSamples = 8400;
 
     // Initialize the output buffer
-    g_vec_output.resize(g_int_maximumBatch * g_int_outputFeatures * g_int_outputSamples, 0.0f); 
+    g_vec_output.resize(g_int_outputFeatures * g_int_outputSamples, 0.0f);
 }
 
 
@@ -64,15 +63,18 @@ void InferYoloV8Pose::preprocess(const cv::Mat& image, const int batchIdx) {
 
     // 4) 转换图片并拷贝到CUDA设备中
     sct_image_to_cuda_tensor(
-        image,
-        cuda_buffer_float,
-        {g_int_inputHeight, g_int_inputWidth, g_int_inputChannels},
-        false);
+        image,                  // 输入图像
+        cuda_buffer_float,      // CUDA 设备指针
+        g_int_inputHeight,      // 目标高度, image.dim0
+        g_int_inputWidth,       // 目标宽度, image.dim1
+        g_int_inputChannels,    // 目标通道数, image.dim2
+        false                   // 不进行 BGR 到 RGB 的转换
+        );
 }
 
 
 // Postprocess the output
-std::vector<YoloPose> InferYoloV8Pose::postprocess(const int batchIdx, const float cls) {
+std::vector<YoloPose> InferYoloV8Pose::postprocess(const int batchIdx, const float cls, const float iou) const {
 
     // 1) 边界检查
     if (batchIdx >= g_int_maximumBatch) {
@@ -90,8 +92,11 @@ std::vector<YoloPose> InferYoloV8Pose::postprocess(const int batchIdx, const flo
         return {};
     }
 
-    //TODO
-    std::cout << "Post-processing results: " << results << " detected poses." << std::endl;
+   // 4) 将结果转换为 Yolo 对象
+    std::vector<YoloPose> yolo_results;
+    host_xywh_to_xyxy_pose(g_vec_output, yolo_results, g_int_outputFeatures, results);
 
-    return {};
+    // 5) 执行NMS处理
+    // yolo_results = nms(yolo_results, iou);
+    return yolo_results;
 }

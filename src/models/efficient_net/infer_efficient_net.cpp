@@ -25,7 +25,6 @@ EfficientNetForFeatAndClassification::EfficientNetForFeatAndClassification(
     g_int_inputWidth = 224;
     g_int_inputHeight = 224;
     g_int_inputChannels = 3;
-    LOG_VERBOSE_TOPIC("EfficientNetForFeatAndClassification", "constructor", "EfficientNetForFeatAndClassification created");
 }
 
 
@@ -52,12 +51,15 @@ void EfficientNetForFeatAndClassification::preprocess(const cv::Mat& image, int 
 
     // 4) 转换图片并拷贝到CUDA设备中
     sct_image_to_cuda_tensor(
-        image,
-        cuda_buffer_float,
-        {g_int_inputHeight, g_int_inputWidth, g_int_inputChannels},
-        true,
-        mean,
-        stdv);
+        image,                  // 输入图像
+        cuda_buffer_float,      // CUDA 设备指针
+        g_int_inputHeight,      // 目标高度, image.dim0
+        g_int_inputWidth,       // 目标宽度, image.dim1
+        g_int_inputChannels,    // 目标通道数, image.dim2
+        true,                   // 进行 BGR 到 RGB 的转换
+        mean,                   // 均值参数
+        stdv                    // 标准化参数
+    );
 }
 
 
