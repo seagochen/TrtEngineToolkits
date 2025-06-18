@@ -77,11 +77,16 @@ public:
         int batch_idx = 0);
 
     /**
-     * 获取指定输出张量的 Device 指针，可用于直接访问
+     * 获取指定输入张量的 Device 指针，可用于直接访问
+     * @param tensor_name 输入张量名称
+     * @param batch_idx   样本在批次中的索引
+     * @return 返回 Device 指针
      */
-    const float* getOutputBuffer(const std::string& name) const {
-        return g_map_trtTensors.at(name).ptr();
-    }
+    [[nodiscard]]
+    const float* accessCudaBufByBatchIdx(
+        const std::string& tensor_name,
+        int batch_idx = 0) const;
+
 
 protected:
     /**
@@ -95,14 +100,14 @@ protected:
     /**
      * 为所有输入和输出分配 Device Tensor Buffer
      */
-    bool allocateBufsForTrtEngine(
+    bool allocateBufForTrtEngine(
         const std::vector<TensorDefinition>& input_defs,
         const std::vector<TensorDefinition>& output_defs);
 
     TrtEngineMultiTs*                       g_ptr_engine      = nullptr;
     std::vector<TensorDefinition>           g_input_defs;         // 多输入定义
     std::vector<TensorDefinition>           g_output_defs;        // 多输出定义
-    std::map<std::string, Tensor<float>>    g_map_trtTensors;     // 名称->Device Tensor
+    std::map<std::string, Tensor<float>>    g_map_trtTensors;     // TensorRT 张量映射, <name, Tensor>
     cudaStream_t                            g_stream           = nullptr;  // CUDA 流
 };
 

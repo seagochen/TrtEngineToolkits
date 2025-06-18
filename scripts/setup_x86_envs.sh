@@ -4,8 +4,8 @@
 set -e
 
 # Variables
-TARGET_DIR="$HOME/Projects/Serverlet"
-LINK_NAME="/opt/Serverlet"
+TARGET_DIR="$HOME/projects/TrtEngineToolkits"
+LINK_NAME="/opt/TrtEngineToolkits"
 
 # Function to print messages
 print_message() {
@@ -22,30 +22,45 @@ update_packages() {
 
 # Function to install system dependencies
 install_dependencies() {
-    print_message "Installing OpenCV and other system dependencies..."
-    sudo apt install -y \
-        build-essential \
-        cmake \
-        git \
-        pkg-config \
-        libgtk-3-dev \
-        libavcodec-dev \
-        libavformat-dev \
-        libswscale-dev \
-        libv4l-dev \
-        libxvidcore-dev \
-        libx264-dev \
-        libjpeg-dev \
-        libpng-dev \
-        libtiff-dev \
-        gfortran \
-        openexr \
-        libatlas-base-dev \
-        python3-dev \
-        python3-numpy \
-        libtbbmalloc2 \
-        libtbb-dev \
+    print_message "Installing system dependencies..."
+
+    # Common dependencies
+    COMMON_DEPS=(
+        build-essential
+        cmake
+        git
+        pkg-config
+        libgtk-3-dev
+        libavcodec-dev
+        libavformat-dev
+        libswscale-dev
+        libv4l-dev
+        libxvidcore-dev
+        libx264-dev
+        libjpeg-dev
+        libpng-dev
+        libtiff-dev
+        gfortran
+        openexr
+        libatlas-base-dev
+        python3-dev
+        python3-numpy
         libdc1394-dev
+    )
+
+    # Attempt to install libtbbmalloc2 first
+    TBB_DEPS=(libtbbmalloc2)
+    print_message "Attempting to install libtbbmalloc2..."
+    if ! sudo apt install -y "${COMMON_DEPS[@]}" "${TBB_DEPS[@]}"; then
+        print_message "libtbbmalloc2 not found or failed to install. Trying libtbb-dev instead..."
+        TBB_DEPS=(libtbb-dev)
+        # Re-attempt installation with libtbb-dev
+        if ! sudo apt install -y "${COMMON_DEPS[@]}" "${TBB_DEPS[@]}"; then
+            print_message "Failed to install required TBB dependencies (libtbbmalloc2 or libtbb-dev). Please check your repositories."
+            exit 1
+        fi
+    fi
+    print_message "System dependencies installed successfully."
 }
 
 # Function to install OpenCV
@@ -54,40 +69,24 @@ install_opencv() {
     sudo apt install -y libopencv-dev
 }
 
-# Function to install Protobuf
-install_protobuf() {
-    print_message "Installing Protobuf..."
-    sudo apt install -y protobuf-compiler libprotobuf-dev
-}
-
-# Function to install YAML library
-install_yaml() {
-    print_message "Installing YAML library..."
-    sudo apt install -y libyaml-cpp-dev
-}
-
-# Function to install Mosquitto
-install_mosquitto() {
-    print_message "Installing Mosquitto..."
-    sudo apt install -y mosquitto mosquitto-clients libmosquitto-dev
-}
-
+# Function to install nvitop
 install_nvitop() {
     print_message "Installing nvitop for x86 platform..."
 
-    # 更新系统包并安装 Python 和 pip
-    sudo apt update
+    # Install Python and pip (if not already installed, apt install is idempotent)
     sudo apt install -y python3 python3-pip
 
-    # 安装 nvitop
+    # Install nvitop
     pip3 install -U nvitop
 
-    # 测试 nvitop 是否安装成功
+    # Test nvitop installation
     print_message "Testing nvitop installation..."
-    if nvitop --help >/dev/null 2>&1; then
+    if command -v nvitop &> /dev/null; then # More robust check for command existence
         print_message "nvitop installed successfully! You can now run 'nvitop'."
     else
         print_message "nvitop installation failed. Please check for errors."
+        # Optionally, exit here if nvitop is a critical dependency
+        # exit 1
     fi
 }
 
@@ -99,29 +98,25 @@ check_versions() {
     if pkg-config --exists opencv4; then
         opencv_version=$(pkg-config --modversion opencv4)
         echo "OpenCV version: $opencv_version"
+    elif pkg-config --exists opencv; then # Fallback for older OpenCV
+        opencv_version=$(pkg-config --modversion opencv)
+        echo "OpenCV version: $opencv_version (using 'opencv' module)"
     else
-        echo "OpenCV is not installed."
+        echo "OpenCV is not installed or pkg-config cannot find it."
     fi
 
-    # Protobuf
-    if command -v protoc &> /dev/null; then
-        protobuf_version=$(protoc --version)
-        echo "Protobuf version: $protobuf_version"
+    # TBB check
+    if dpkg -s libtbbmalloc2 &>/dev/null; then
+        echo "libtbbmalloc2 is installed."
+    elif dpkg -s libtbb-dev &>/dev/null; then
+        echo "libtbb-dev is installed, which typically provides TBB malloc libraries."
     else
-        echo "Protobuf is not installed."
+        echo "Neither libtbbmalloc2 nor libtbb-dev appear to be installed."
     fi
 
-    # YAML
-    yaml_version=$(dpkg -s libyaml-cpp-dev 2>/dev/null | grep '^Version:')
-    if [ -n "$yaml_version" ]; then
-        echo "YAML version: $yaml_version"
-    else
-        echo "YAML library is not installed."
-    fi
-
-    # Mosquitto
-    mosquitto_version=$(mosquitto -h 2>/dev/null | grep -i version || echo "Mosquitto is not installed.")
-    echo "Mosquitto version: $mosquitto_version"
+    # Python
+    echo "Python 3 version: $(python3 --version 2>&1)"
+    echo "pip 3 version: $(pip3 --version 2>&1)"
 }
 
 # Function to create a symbolic link in /opt
@@ -153,13 +148,9 @@ setup_symlink() {
 main() {
     update_packages
     install_dependencies
-    install_opencv
-    install_protobuf
-    install_yaml
-    install_mosquitto
+    install_opencv # Note: install_dependencies already has many OpenCV prerequisites, but this installs the main libopencv-dev
     install_nvitop
     check_versions
-
     setup_symlink
     print_message "Installation and setup complete!"
 }

@@ -66,6 +66,23 @@ endif()
 # ------------------ 查找 OpenCV ------------------
 find_package(OpenCV REQUIRED)
 
+
+# ------------------ OpenMP 支持 ------------------
+find_package(OpenMP QUIET COMPONENTS CXX) # 尝试查找 C++ 的 OpenMP 支持
+
+if (OpenMP_CXX_FOUND)
+    message(STATUS "Found OpenMP_CXX")
+    # 添加 OpenMP 编译选项和链接库
+    # OpenMP_CXX_FLAGS 会包含 -fopenmp 或 /openmp
+    # OpenMP_CXX_LIBRARIES 会包含 libgomp 或 libomp 等运行时库
+    set(OpenMP_FLAGS ${OpenMP_CXX_FLAGS})
+    set(OpenMP_LIBS ${OpenMP_CXX_LIBRARIES})
+else()
+    message(WARNING "OpenMP CXX support not found. Continuing without OpenMP.")
+    set(OpenMP_FLAGS "")
+    set(OpenMP_LIBS "")
+endif()
+
 # ------------------ 编译选项(可选) ------------------
 # 如果所有目标都需要此选项，则全局设置也可接受
 add_compile_options(-fvisibility=default)
@@ -78,11 +95,19 @@ file(GLOB_RECURSE
         "${PROJECT_SOURCE_DIR}/src/*.cpp"
 )
 
-# ------------------ 生成目标：jetson_shared (共享库) ------------------
+# ====================================================================
+#                生成目标：jetson_shared （共享库）
+# ====================================================================
+
+# 公共源文件
 add_library(jetson_shared SHARED ${COMMON_SOURCE_FILES})
+
+# 设置目标属性
 set_target_properties(jetson_shared PROPERTIES
         OUTPUT_NAME "jetson"
 )
+
+# 连接头文件
 target_include_directories(jetson_shared PRIVATE
         ${CUDA_INCLUDE_DIRS}
         ${SIMPLE_CUDA_TOOLKITS_INC}
@@ -90,17 +115,34 @@ target_include_directories(jetson_shared PRIVATE
         ${OpenCV_INCLUDE_DIRS}
         "${PROJECT_SOURCE_DIR}/include"
 )
+
+# 连接库文件
 target_link_libraries(jetson_shared PRIVATE
         ${CUDA_LIBRARIES}
         "${SIMPLE_CUDA_TOOLKITS_LIB}/libsimplecuda.a"
         ${TENSORRT_LIBS}
         ${OpenCV_LIBRARIES}
+        ${OpenMP_LIBS} # 添加 OpenMP 链接库
 )
-# ------------------ 生成目标：jetson_static (静态库) ------------------
+
+# 设置编译选项
+target_compile_options(jetson_shared PRIVATE
+        ${OpenMP_FLAGS} # 添加 OpenMP 编译选项
+)
+
+# ====================================================================
+#                生成目标：jetson_static (静态库)
+# ====================================================================
+
+# 公共源文件
 add_library(jetson_static STATIC ${COMMON_SOURCE_FILES})
+
+# 设置目标属性
 set_target_properties(jetson_static PROPERTIES
         OUTPUT_NAME "jetson"
 )
+
+# 连接头文件
 target_include_directories(jetson_static PRIVATE
         ${CUDA_INCLUDE_DIRS}
         ${SIMPLE_CUDA_TOOLKITS_INC}
@@ -108,9 +150,59 @@ target_include_directories(jetson_static PRIVATE
         ${OpenCV_INCLUDE_DIRS}
         "${PROJECT_SOURCE_DIR}/include"
 )
+
+# 连接库文件
 target_link_libraries(jetson_static PRIVATE
         ${CUDA_LIBRARIES}
         "${SIMPLE_CUDA_TOOLKITS_LIB}/libsimplecuda.a"
         ${TENSORRT_LIBS}
         ${OpenCV_LIBRARIES}
+        ${OpenMP_LIBS} # 添加 OpenMP 链接库
+)
+
+# 设置编译选项
+target_compile_options(jetson_static PRIVATE
+        ${OpenMP_FLAGS} # 添加 OpenMP 编译选项
+)
+
+# ====================================================================
+#                生成目标：trt_engine_test (可执行文件)
+# ====================================================================
+# 测试专用源文件
+set(TEST_SPECIAL_SOURCES
+        "${PROJECT_SOURCE_DIR}/trt_engine_test.cpp"
+)
+
+# 合并公共源和测试专用源
+list(APPEND TEST_SPECIAL_SOURCES ${COMMON_SOURCE_FILES})
+
+# 生成可执行文件
+add_executable(trt_engine_test ${TEST_SPECIAL_SOURCES})
+
+# 设置目标属性
+set_target_properties(trt_engine_test PROPERTIES
+        OUTPUT_NAME "trt_engine_test"
+)
+
+# 添加包含目录
+target_include_directories(trt_engine_test PRIVATE
+        ${CUDA_INCLUDE_DIRS}
+        ${SIMPLE_CUDA_TOOLKITS_INC}
+        ${TENSORRT_INCLUDE_DIRS}
+        ${OpenCV_INCLUDE_DIRS}
+        "${PROJECT_SOURCE_DIR}/include"
+)
+
+# 链接所需的库
+target_link_libraries(trt_engine_test PRIVATE
+        ${CUDA_LIBRARIES}
+        "${SIMPLE_CUDA_TOOLKITS_LIB}/libsimplecuda.a"
+        ${TENSORRT_LIBS}
+        ${OpenCV_LIBRARIES}
+        ${OpenMP_LIBS} # 添加 OpenMP 链接库
+)
+
+# 设置编译选项
+target_compile_options(trt_engine_test PRIVATE
+        ${OpenMP_FLAGS} # 添加 OpenMP 编译选项
 )
