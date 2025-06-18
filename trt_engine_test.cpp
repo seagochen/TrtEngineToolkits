@@ -81,7 +81,7 @@ void test_yolo_pose()
         pose_model->postprocess(i, params, raw_results);
 
         try {
-            std::vector<YoloPose> current_batch_results = std::any_cast<std::vector<YoloPose>>(raw_results);
+            auto current_batch_results = std::any_cast<std::vector<YoloPose>>(raw_results);
 
             // 获取当前批次的原始图片进行绘制
             cv::Mat display_image = original_images[i].clone(); // 克隆一份，避免修改原始图片
@@ -161,7 +161,7 @@ void test_yolo_detection()
     detection_model->postprocess(0, params, raw_results);
 
     try {
-        std::vector<Yolo> detection_results = std::any_cast<std::vector<Yolo>>(raw_results);
+        auto detection_results = std::any_cast<std::vector<Yolo>>(raw_results);
 
         // 在这里处理检测结果，例如绘制边界框
         cv::Mat display_image = original_image.clone(); // 克隆一份，避免修改原始图片
@@ -193,22 +193,156 @@ void test_yolo_detection()
 
 void test_yolo_pose_efficient()
 {
-    // // 定义模型参数
-    // std::map<std::string, std::any> params;
-    // int maximum_batch = 4; // 明确批处理大小
-    // params["maximum_batch"] = 1;
-    // params["maximum_items"] = 100;
-    // params["infer_features"] = 56;
-    // params["infer_samples"] = 8400;
+    // 定义YoloPose模型参数
+    std::map<std::string, std::any> params1;
+    params1["maximum_batch"] = 1;
+    params1["maximum_items"] = 100;
+    params1["infer_features"] = 56;
+    params1["infer_samples"] = 8400;
 
-    // // 用于postprocess的参数
-    // params["cls"] = 0.4f;
-    // params["iou"] = 0.5f;
+    // 用于postprocess的参数
+    params1["cls"] = 0.4f;
+    params1["iou"] = 0.5f;
 
-    // // 创建 YOLOv8 姿态估计模型
-    // std::unique_ptr<InferModelBaseMulti> pose_model = ModelFactory::createModel(
-    //     "YoloV8_Pose", "/opt/models/yolov8s-pose.engine", params
-    // );
+    // 创建 YOLOv8 姿态估计模型
+    std::unique_ptr<InferModelBaseMulti> pose_model = ModelFactory::createModel(
+        "YoloV8_Pose", "/opt/models/yolov8s-pose.engine", params1
+    );
+    if (!pose_model) {
+        std::cerr << "Failed to create YOLOv8 Pose Estimation Model." << std::endl;
+        return;
+    }
+
+    // 定义EfficientNet模型参数
+    std::map<std::string, std::any> params2;
+    params2["maximum_batch"] = 4;
+
+    // 创建 EfficientNet 模型
+    std::unique_ptr<InferModelBaseMulti> efficient_model = ModelFactory::createModel(
+        "EfficientNet", "/opt/models/efficientnet_b0_feat_logits.engine", params2
+    );
+    if (!efficient_model) {
+        std::cerr << "Failed to create EfficientNet Model." << std::endl;
+        return;
+    }
+
+    // --- 加载图片 ---
+    std::string image_path = "/opt/images/supermarket/customer4.png";
+    cv::Mat original_image = cv::imread(image_path);
+    if (original_image.empty()) {
+        std::cerr << "Failed to load image: " << image_path << std::endl;
+        return; // 如果图片加载失败，可以考虑跳过或用一个占位符图片
+    }
+
+    // 首先预处理 YOLOv8 姿态估计模型
+    pose_model->preprocess(original_image, 0);
+    std::cout << "Pose model image preprocessed and copied to batch index 0." << std::endl;
+    // 执行 YOLOv8 姿态估计模型推理
+    if (pose_model->inference()) {
+        std::cout << "Pose model inference executed successfully." << std::endl;
+    } else {
+        std::cerr << "Pose model inference failed." << std::endl;
+        return;
+    }
+
+    // 后处理 YOLOv8 姿态估计模型
+    std::any pose_results;
+    pose_model->postprocess(0, params1, pose_results);
+    std::vector<YoloPose> pose_detections;
+    try {
+        pose_detections = std::any_cast<std::vector<YoloPose>>(pose_results);
+    } catch (const std::bad_any_cast& e) {
+        std::cerr << "Error casting pose results: " << e.what() << std::endl;
+        return;
+    }
+
+    // 一共检测到多少个人体
+    std::cout << "Detected " << pose_detections.size() << " persons in the image." << std::endl;
+
+    // 将图片resize到模型期望的输入大小
+    cv::Mat resized_image;
+    cv::resize(original_image, resized_image, cv::Size(640, 640));
+
+    // 根据检测到的人体数量，从图片中裁剪出对应的区域
+    const float scale_factor = 1.2f; // 缩放因子
+    std::vector<cv::Mat> cropped_images;
+    for (const auto& pose : pose_detections) {
+        if (pose.pts.empty()) {
+            std::cerr << "No keypoints detected for a person, skipping." << std::endl;
+            continue;
+        }
+
+        // 计算人体边界框
+        int min_x = std::min(pose.lx, pose.rx);
+        int min_y = std::min(pose.ly, pose.ry);
+        int max_x = std::max(pose.lx, pose.rx);
+        int max_y = std::max(pose.ly, pose.ry);
+        int width = max_x - min_x;
+        int height = max_y - min_y;
+
+        // 计算裁剪区域，添加缩放因子
+        int crop_x = std::max(0, static_cast<int>(min_x - width * (scale_factor - 1) / 2));
+        int crop_y = std::max(0, static_cast<int>(min_y - height * (scale_factor - 1) / 2));
+        int crop_width = std::min(resized_image.cols - crop_x, static_cast<int>(width * scale_factor));
+        int crop_height = std::min(resized_image.rows - crop_y, static_cast<int>(height * scale_factor));
+        cv::Mat cropped_image = resized_image(cv::Rect(crop_x, crop_y, crop_width, crop_height));
+        cropped_images.push_back(cropped_image);
+    }
+
+    // 现在批量处理裁剪后的图片
+    for (size_t i = 0; i < cropped_images.size(); ++i)
+    {
+        // 预处理 EfficientNet 模型
+        efficient_model->preprocess(cropped_images[i], i);
+        std::cout << "EfficientNet model image preprocessed and copied to batch index " << i << "." << std::endl;
+    }
+
+    // 执行 EfficientNet 模型推理
+    if (efficient_model->inference()) {
+        std::cout << "EfficientNet model inference executed successfully." << std::endl;
+    } else {
+        std::cerr << "EfficientNet model inference failed." << std::endl;
+        return;
+    }
+
+    // --- 后处理 EfficientNet 模型，遍历所有裁剪图片对应的批次 ---
+    for (size_t i = 0; i < cropped_images.size(); ++i) { // 遍历所有有效批次
+        std::any efficient_results_per_person;
+        efficient_model->postprocess(i, params2, efficient_results_per_person);
+
+        try {
+            auto current_person_feat_cls = std::any_cast<std::vector<float>>(efficient_results_per_person);
+
+            if (!current_person_feat_cls.empty()) {
+                int predicted_class = static_cast<int>(current_person_feat_cls[0]);
+                std::cout << "  Person " << i << ": Predicted class: " << predicted_class
+                          << ", Feature vector size: " << current_person_feat_cls.size() - 1 << std::endl;
+
+                // **核心修改：使用引用来更新原始向量中的元素**
+                auto& pose = pose_detections[i]; // 注意这里的 '&'
+                pose.cls = static_cast<float>(predicted_class); // 确保 cls 是 float 类型
+
+            } else {
+                std::cout << "  Person " << i << ": No EfficientNet results found." << std::endl;
+            }
+
+        } catch (const std::bad_any_cast& e) {
+            std::cerr << "Error casting EfficientNet results for person " << i << ": " << e.what() << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "An unexpected error occurred during EfficientNet postprocessing for person " << i << ": " << e.what() << std::endl;
+        }
+    }
+    std::cout << "EfficientNet postprocessing completed for all detected persons." << std::endl;
+
+    // Optional: Draw poses on the original image (if you want to visualize both)
+    YoloDrawer drawer;
+    cv::Mat display_image_combined = original_image.clone();
+    cv::resize(display_image_combined, display_image_combined, cv::Size(640, 640)); // Resize for consistency
+    drawer.drawPoses(display_image_combined, pose_detections);
+
+    cv::imshow("Combined Results (YOLOv8 Pose + EfficientNet)", display_image_combined);
+    cv::waitKey(0);
+    cv::destroyAllWindows();
 }
 
 void unknown_model_test() {

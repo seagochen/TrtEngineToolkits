@@ -96,7 +96,7 @@ inline void registerModels()
     // 注册 EfficientNet 模型
     ModelFactory::registerModel("EfficientNet", [](const std::string& engine_path, const std::map<std::string, std::any>& params) {
         int maximum_batch = GET_PARAM(params, "maximum_batch", int);
-        return std::make_unique<EfficientNetForFeatAndClassification>(engine_path, maximum_batch);
+        return std::make_unique<EfficientFeats>(engine_path, maximum_batch);
     });
 }
 
