@@ -6,7 +6,7 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 
-#include <simple_cuda_toolkits/tsutils/permute_3D.h>
+#include <simple_cuda_toolkits/vision/image_permute.h>
 #include <simple_cuda_toolkits/vision/image_ops.h>
 
 #include "serverlet/models/common/image_to_tensor.h"
@@ -117,7 +117,7 @@ void sct_image_to_cuda_tensor(
     // 6. 将 HWC 格式（current_data_dev）转置为 CHW 格式（next_output_dev）
     // sctPermute3D_v2 函数的参数为输入、输出、H、W、C 以及置换轴顺序。
     // HWC (0, 1, 2) -> CHW (2, 0, 1)
-    sctPermute3D_v2(current_data_dev, next_output_dev,
+    sctImagePermute(current_data_dev, next_output_dev,
         target_height, target_width, target_channels,
         2, 0, 1);
     

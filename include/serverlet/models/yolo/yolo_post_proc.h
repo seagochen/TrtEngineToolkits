@@ -19,7 +19,7 @@
  * @param use_pose 是否使用姿态估计
  * @return 返回处理后的结果数量
  */
-int sct_yolo_post_proc(const float* ptr_device, std::vector<float> output,
+int sct_yolo_post_proc(const float* ptr_device, std::vector<float>& output,
                                  int features, int samples, float cls, bool use_pose = false);
 
 #endif //SCT_YOLO_POST_PROCESS_H
