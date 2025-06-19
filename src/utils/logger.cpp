@@ -2,7 +2,7 @@
 // Created by user on 3/21/25.
 //
 
-#include "serverlet/utils/logger.h"
+#include "utils/logger.h"
 #include <iostream>
 #include <sstream>
 #include <ctime>
@@ -65,7 +65,7 @@ std::string Logger::getLogLevelColor(LogLevel level) {
         case INFO: return GREEN;        // 绿色
         case WARNING: return YELLOW;    // 黄色
         case ERROR: return RED;         // 红色
-        case DEBUG: return GRAY;       // 黑色
+        case DEBUG: return GRAY;        // 黑色
         default: return RESET;
     }
 }

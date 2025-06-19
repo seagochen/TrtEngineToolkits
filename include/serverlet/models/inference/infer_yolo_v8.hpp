@@ -14,7 +14,7 @@
 #include "serverlet/models/common/yolo_dstruct.h"
 #include "serverlet/models/common/yolo_nms.hpp"
 #include "serverlet/models/common/yolo_postprocess.h"
-#include "serverlet/utils/logger.h"
+#include "utils/logger.h"
 
 
 // --- Templated InferYoloV8 Class ---

@@ -3,7 +3,7 @@
 //
 
 #include "simple_cuda_toolkits/tensor_utils.hpp"
-#include "serverlet/utils/logger.h"
+#include "utils/logger.h"
 #include "serverlet/models/infer_model_multi.h"
 #include <cuda_runtime.h>
 #include <fstream>

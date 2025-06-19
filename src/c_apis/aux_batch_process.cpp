@@ -9,7 +9,7 @@
 #include "c_apis/c_dstruct.h"         // C-style structs
 #include "serverlet/models/infer_model_multi.h" // C++ ModelBase
 #include "serverlet/models/inference/infer_yolo_v8.hpp" // To access specific YoloPose type for casting (e.g., getMaximumBatchSize())
-#include "serverlet/utils/logger.h"
+#include "utils/logger.h"
 
 
 // Helper function: Converts C++ YoloPose structs to C-friendly C_Extended_Person_Feats structs.

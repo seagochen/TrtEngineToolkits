@@ -2,7 +2,7 @@
 #include "c_apis/c_dstruct.h"
 #include "c_apis/aux_batch_process.h"
 #include "serverlet/models/inference/model_init_helper.hpp"
-#include "serverlet/utils/logger.h"
+#include "utils/logger.h"
 
 #include <opencv2/opencv.hpp>
 #include <vector>

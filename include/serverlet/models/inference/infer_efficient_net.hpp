@@ -8,7 +8,7 @@
 
 #include "serverlet/models/infer_model_multi.h"
 #include "serverlet/models/common/generic_image_to_tensor.h"
-#include "serverlet/utils/logger.h"
+#include "utils/logger.h"
 
 
 class EfficientFeats final : public InferModelBaseMulti {
