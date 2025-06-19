@@ -8,8 +8,37 @@
 
 // 示例用法
 #include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm> // For std::min, std::max
+#include <any>       // For std::any
+#include <map>       // For std::map
+#include <chrono>    // For std::chrono
+#include <numeric>   // For std::accumulate (if calculating average throughput)
 
-
+// Function to get current memory usage (OS-dependent, simplified for demonstration)
+// For accurate leak detection, a tool like Valgrind is recommended.
+// This is a placeholder for observation.
+long getCurrentRSS() {
+#ifdef __linux__
+    long rss = 0L;
+    FILE* fp = NULL;
+    if ( (fp = fopen( "/proc/self/status", "r" )) == NULL )
+        return 0; // Can't open?
+    char line[128];
+    while ( fgets( line, 128, fp ) != NULL ) {
+        if ( strncmp( line, "VmRSS:", 6 ) == 0 ) {
+            rss = atol( line + 6 );
+            break;
+        }
+    }
+    fclose(fp);
+    return rss; // in KB
+#else
+    // Placeholder for other OSes
+    return 0;
+#endif
+}
 
 void test_yolo_pose()
 {
@@ -358,6 +387,179 @@ void unknown_model_test() {
     }
 }
 
+/**
+ * @brief Generates a random OpenCV Mat image of specified dimensions and type.
+ * @param width Image width.
+ * @param height Image height.
+ * @param channels Image channels (e.g., 3 for BGR).
+ * @return A cv::Mat object filled with random pixel values.
+ */
+cv::Mat generate_random_image(int width, int height, int channels) {
+    cv::Mat img(height, width, CV_8UC(channels));
+    cv::randu(img, cv::Scalar::all(0), cv::Scalar::all(255)); // Fill with random values 0-255
+    return img;
+}
+
+/**
+ * @brief Tests EfficientNet throughput for various batch sizes.
+ * Creates random images and measures processing time.
+ */
+void test_efficientnet_throughput() {
+    const std::string engine_path = "/opt/models/efficientnet_b0_feat_logits.engine";
+    const int image_width = 224;
+    const int image_height = 224;
+    const int image_channels = 3;
+
+    // Test batch sizes
+    // std::vector<int> batch_sizes = {2, 4, 8, 16, 32};  // 16, 32, 64, 128 are too large for EfficientNet B0
+    std::vector<int> batch_sizes = {1, 2, 4, 8, 16}; // Adjusted for more realistic testing
+    const int num_iterations = 100; // Number of times to run inference for each batch size
+
+    for (int current_batch_size : batch_sizes) {
+        std::cout << "--- Testing EfficientNet with batch size: " << current_batch_size << " ---" << std::endl;
+
+        std::map<std::string, std::any> params;
+        params["maximum_batch"] = current_batch_size;
+
+        std::unique_ptr<InferModelBaseMulti> efficient_model = ModelFactory::createModel(
+            "EfficientNet", engine_path, params
+        );
+
+        if (!efficient_model) {
+            std::cerr << "Failed to create EfficientNet Model for batch size " << current_batch_size << ". Skipping." << std::endl;
+            continue;
+        }
+
+        // Generate random images for the current batch size
+        std::vector<cv::Mat> random_images(current_batch_size);
+        for (int i = 0; i < current_batch_size; ++i) {
+            random_images[i] = generate_random_image(image_width, image_height, image_channels);
+        }
+
+        auto start_time = std::chrono::high_resolution_clock::now();
+
+        for (int iter = 0; iter < num_iterations; ++iter) {
+            // Preprocess batch
+            for (int i = 0; i < current_batch_size; ++i) {
+                efficient_model->preprocess(random_images[i], i);
+            }
+
+            // Inference
+            efficient_model->inference();
+
+            // Postprocess (only need to call once per batch, results for each item in batch)
+            // We don't need to actually retrieve results for throughput testing, just ensure the call works.
+            for (int i = 0; i < current_batch_size; ++i) {
+                std::any results_out;
+                efficient_model->postprocess(i, params, results_out);
+                // Optionally, cast and check results to ensure correctness, but not strictly needed for throughput
+                // try {
+                //     auto results_vec = std::any_cast<std::vector<float>>(results_out);
+                // } catch(...) {}
+            }
+        }
+
+        auto end_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> duration = end_time - start_time;
+
+        double total_images_processed = static_cast<double>(num_iterations) * current_batch_size;
+        double throughput_ips = total_images_processed / duration.count();
+
+        std::cout << "  Total images processed: " << total_images_processed << std::endl;
+        std::cout << "  Total time taken: " << duration.count() << " seconds" << std::endl;
+        std::cout << "  Throughput: " << throughput_ips << " images/second" << std::endl;
+        std::cout << std::endl;
+    }
+}
+
+/**
+ * @brief Performs a memory leak stress test for a given model.
+ * Executes inference requests many times with batch size 1 and prints memory usage.
+ * @param model_name Name of the model (for ModelFactory).
+ * @param engine_path Path to the TensorRT engine file.
+ * @param infer_params Parameters for model creation and postprocessing.
+ * @param image_path Path to a sample image for preprocessing.
+ * @param is_yolo_model True if it's a YOLO model (to adjust image dimensions).
+ */
+void test_memory_leak_stress(const std::string& model_name,
+                             const std::string& engine_path,
+                             const std::map<std::string, std::any>& infer_params,
+                             const std::string& image_path,
+                             bool is_yolo_model) {
+    const int num_iterations = 10000; // 1万次请求
+
+    std::cout << "--- Starting memory leak stress test for: " << model_name << " (" << num_iterations << " iterations) ---" << std::endl;
+
+    // Use a fixed batch size of 1 for this test as requested
+    std::map<std::string, std::any> current_params = infer_params;
+    current_params["maximum_batch"] = 1; // Force batch size to 1
+
+    std::unique_ptr<InferModelBaseMulti> model = ModelFactory::createModel(
+        model_name, engine_path, current_params
+    );
+
+    if (!model) {
+        std::cerr << "Failed to create model " << model_name << ". Skipping stress test." << std::endl;
+        return;
+    }
+
+    cv::Mat original_image = cv::imread(image_path);
+    if (original_image.empty()) {
+        std::cerr << "Failed to load image for stress test: " << image_path << ". Skipping." << std::endl;
+        return;
+    }
+
+    // Resize image once if it's a YOLO model's input dimension
+    cv::Mat processed_image;
+    if (is_yolo_model) {
+        cv::resize(original_image, processed_image, cv::Size(640, 640));
+    } else {
+        // Assuming EfficientNet input is 224x224
+        cv::resize(original_image, processed_image, cv::Size(224, 224));
+    }
+
+
+    long initial_rss = getCurrentRSS();
+    std::cout << "Initial RSS: " << initial_rss << " KB" << std::endl;
+
+
+    for (int i = 0; i < num_iterations; ++i) {
+        model->preprocess(processed_image, 0); // Always batch 0 for single item
+        model->inference();
+        std::any results_out;
+        model->postprocess(0, current_params, results_out); // Pass current_params (contains cls/iou if needed)
+
+        // Optionally, check result validity without processing it much
+        if (model_name == "YoloV8_Pose" || model_name == "YoloV8_Detection") {
+            try {
+                auto results_vec = std::any_cast<std::vector<YoloPose>>(results_out); // or std::vector<Yolo>
+                // std::cout << "  YOLO detections in iteration " << i << ": " << results_vec.size() << std::endl;
+            } catch (const std::bad_any_cast& e) {
+                // std::cerr << "  Warning: Bad cast in iteration " << i << " for YOLO model: " << e.what() << std::endl;
+            }
+        } else if (model_name == "EfficientNet") {
+            try {
+                auto results_vec = std::any_cast<std::vector<float>>(results_out);
+                // std::cout << "  EfficientNet result size in iteration " << i << ": " << results_vec.size() << std::endl;
+            } catch (const std::bad_any_cast& e) {
+                // std::cerr << "  Warning: Bad cast in iteration " << i << " for EfficientNet: " << e.what() << std::endl;
+            }
+        }
+        
+        // Print memory usage periodically
+        if ((i + 1) % (num_iterations / 10) == 0) { // Print 10 times during the test
+            long current_rss = getCurrentRSS();
+            std::cout << "  Iteration " << (i + 1) << "/" << num_iterations << ", Current RSS: " << current_rss << " KB, Diff: " << (current_rss - initial_rss) << " KB" << std::endl;
+        }
+    }
+
+    long final_rss = getCurrentRSS();
+    std::cout << "Final RSS: " << final_rss << " KB" << std::endl;
+    std::cout << "Memory usage difference: " << (final_rss - initial_rss) << " KB" << std::endl;
+    std::cout << "--- Memory leak stress test for " << model_name << " finished. ---" << std::endl << std::endl;
+}
+
+
 int main() {
 
     // 注册所有模型
@@ -381,6 +583,43 @@ int main() {
     // 测试 YOLOv8 + EfficientNet 模型
     std::cout << YELLOW << "Testing YOLOv8 + EfficientNet..." << RESET << std::endl;
     test_yolo_pose_efficient();
+    std::cout << YELLOW_LINE << std::endl;
+
+    // --- New Tests ---
+
+    // 1. EfficientNet 吞吐量测试
+    std::cout << YELLOW << "Starting EfficientNet Throughput Test..." << RESET << std::endl;
+    test_efficientnet_throughput();
+    std::cout << YELLOW_LINE << std::endl;
+
+    // 2. 内存溢出/泄露测试 (1万次请求)
+    std::cout << YELLOW << "Starting Memory Leak Stress Tests (10,000 iterations each)..." << RESET << std::endl;
+
+    // YOLOv8 Pose
+    std::map<std::string, std::any> yolo_pose_params;
+    yolo_pose_params["maximum_batch"] = 1; // Fixed for this test
+    yolo_pose_params["maximum_items"] = 100;
+    yolo_pose_params["infer_features"] = 56;
+    yolo_pose_params["infer_samples"] = 8400;
+    yolo_pose_params["cls"] = 0.4f;
+    yolo_pose_params["iou"] = 0.5f;
+    test_memory_leak_stress("YoloV8_Pose", "/opt/models/yolov8s-pose.engine", yolo_pose_params, "/opt/images/human_and_pets.png", true);
+
+    // YOLOv8 Detection
+    std::map<std::string, std::any> yolo_detection_params;
+    yolo_detection_params["maximum_batch"] = 1; // Fixed for this test
+    yolo_detection_params["maximum_items"] = 100;
+    yolo_detection_params["infer_features"] = 84;
+    yolo_detection_params["infer_samples"] = 8400;
+    yolo_detection_params["cls"] = 0.4f;
+    yolo_detection_params["iou"] = 0.5f;
+    test_memory_leak_stress("YoloV8_Detection", "/opt/models/yolov8s.engine", yolo_detection_params, "/opt/images/india_road.png", true);
+
+    // EfficientNet
+    std::map<std::string, std::any> efficientnet_params_leak_test;
+    efficientnet_params_leak_test["maximum_batch"] = 1; // Fixed for this test
+    test_memory_leak_stress("EfficientNet", "/opt/models/efficientnet_b0_feat_logits.engine", efficientnet_params_leak_test, "/opt/images/apples.png", false);
+
     std::cout << YELLOW_LINE << std::endl;
 
     // 尝试创建不存在的模型

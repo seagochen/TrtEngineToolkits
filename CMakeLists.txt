@@ -87,6 +87,10 @@ endif()
 # 如果所有目标都需要此选项，则全局设置也可接受
 add_compile_options(-fvisibility=default)
 
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")  # 可执行文件通常不放在 lib 目录下，这里注释掉
+
 # ------------------ 源文件收集 ------------------
 # 使用 CONFIGURE_DEPENDS 使 CMake 在源文件改变时能自动重新生成构建系统
 file(GLOB_RECURSE
@@ -205,4 +209,40 @@ target_link_libraries(trt_engine_test PRIVATE
 # 设置编译选项
 target_compile_options(trt_engine_test PRIVATE
         ${OpenMP_FLAGS} # 添加 OpenMP 编译选项
+)
+
+# ------------------- 安装规则 -------------------
+
+# 设置安装前缀。用户可以通过 -DCMAKE_INSTALL_PREFIX=/path/to/install 覆盖
+if (NOT DEFINED CMAKE_INSTALL_PREFIX)
+    set(CMAKE_INSTALL_PREFIX "/opt/TrtEngineToolkits" CACHE PATH "Installation prefix for SimpleCudaToolkits")
+endif()
+
+# 安装头文件 (假设你的公共头文件在 PROJECT_SOURCE_DIR/include 目录下)
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/include"
+        OPTIONAL # OPTIONAL keyword goes before PATTERN in newer CMake versions, but for safety, if you hit an error, try moving it.
+        FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+)
+
+# 安装静态库
+install(TARGETS jetson_static
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib"
+)
+
+# 安装动态库
+install(TARGETS jetson_shared
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib"
+)
+
+# 安装 Python 封装的 API (pyengine 文件夹)
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/pyengine/"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/pyengine"
+        OPTIONAL # Use OPTIONAL if this directory might not always exist or is for specific builds
+)
+
+# 安装配置文件 (config 文件夹)
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/config/"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/config"
+        OPTIONAL # Use OPTIONAL if this directory might not always exist or is for specific builds
 )
