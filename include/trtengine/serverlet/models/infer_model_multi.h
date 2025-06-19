@@ -11,7 +11,7 @@
 #include <any>
 #include <cuda_runtime.h>
 #include <opencv2/opencv.hpp>
-#include "serverlet/trt_engine/trt_engine_multi.h"
+#include "trtengine/serverlet/trt_engine/trt_engine_multi.h"
 
 // 前向声明：Tensor 模板类
 template<typename T>

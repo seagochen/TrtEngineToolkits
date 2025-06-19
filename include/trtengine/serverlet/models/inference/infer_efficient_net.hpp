@@ -6,9 +6,9 @@
 #include <string>
 #include <opencv2/opencv.hpp>
 
-#include "serverlet/models/infer_model_multi.h"
-#include "serverlet/models/common/generic_image_to_tensor.h"
-#include "utils/logger.h"
+#include "trtengine/serverlet/models/infer_model_multi.h"
+#include "trtengine/serverlet/models/common/generic_image_to_tensor.h"
+#include "trtengine/utils/logger.h"
 
 
 class EfficientFeats final : public InferModelBaseMulti {

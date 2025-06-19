@@ -9,12 +9,12 @@
 #include <cuda_runtime.h>
 
 // Project-specific includes
-#include "serverlet/models/infer_model_multi.h"
-#include "serverlet/models/common/generic_image_to_tensor.h"
-#include "serverlet/models/common/yolo_dstruct.h"
-#include "serverlet/models/common/yolo_nms.hpp"
-#include "serverlet/models/common/yolo_postprocess.h"
-#include "utils/logger.h"
+#include "trtengine/serverlet/models/infer_model_multi.h"
+#include "trtengine/serverlet/models/common/generic_image_to_tensor.h"
+#include "trtengine/serverlet/models/common/yolo_dstruct.h"
+#include "trtengine/serverlet/models/common/yolo_nms.hpp"
+#include "trtengine/serverlet/models/common/yolo_postprocess.h"
+#include "trtengine/utils/logger.h"
 
 
 // --- Templated InferYoloV8 Class ---

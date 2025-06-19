@@ -2,8 +2,8 @@
 #define AUX_BATCH_PROCESS_H
 
 #include <vector>
-#include "c_apis/c_dstruct.h"
-#include "serverlet/models/infer_model_multi.h"
+#include "trtengine/c_apis/c_dstruct.h"
+#include "trtengine/serverlet/models/infer_model_multi.h"
 
 // Struct to hold results and images from the pose detection stage
 struct PoseBatchOutput {

@@ -10,7 +10,7 @@
 
 #include <opencv2/opencv.hpp>
 
-#include "c_apis/c_pose_detection.h"
+#include "trtengine/c_apis/c_pose_detection.h"
 
 int main()
 {

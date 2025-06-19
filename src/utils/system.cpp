@@ -1,8 +1,6 @@
-#include <bits/stdio2.h>
 #include <cstdio>
 #include <string.h>
 #include <stdlib.h>
-
 
 
 // Function to get current memory usage (OS-dependent, simplified for demonstration)

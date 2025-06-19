@@ -3,8 +3,8 @@
 //
 
 #include <opencv2/opencv.hpp>
-#include "serverlet/models/common/yolo_drawer.h"
-#include "serverlet/models/inference/model_init_helper.hpp"
+#include "trtengine/serverlet/models/common/yolo_drawer.h"
+#include "trtengine/serverlet/models/inference/model_init_helper.hpp"
 
 // 示例用法
 #include <iostream>

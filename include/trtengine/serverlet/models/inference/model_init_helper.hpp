@@ -8,10 +8,10 @@
 #include <any>          // For std::any (C++17 onwards)
 #include <vector>
 
-#include "serverlet/models/inference/infer_yolo_v8.hpp"
-#include "serverlet/models/inference/infer_efficient_net.hpp"
-#include "serverlet/models/common/yolo_coords.h"
-#include "serverlet/models/infer_model_multi.h"
+#include "trtengine/serverlet/models/inference/infer_yolo_v8.hpp"
+#include "trtengine/serverlet/models/inference/infer_efficient_net.hpp"
+#include "trtengine/serverlet/models/common/yolo_coords.h"
+#include "trtengine/serverlet/models/infer_model_multi.h"
 
 
 // 辅助宏用于类型转换，简化参数获取

@@ -1,7 +1,7 @@
 #ifndef C_POSE_DETECTION_H
 #define C_POSE_DETECTION_H
 
-#include "c_apis/c_dstruct.h"
+#include "trtengine/c_apis/c_dstruct.h"
 
 #ifdef __cplusplus
 extern "C" {

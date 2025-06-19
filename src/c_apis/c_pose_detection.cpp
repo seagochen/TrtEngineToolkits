@@ -1,8 +1,8 @@
-#include "c_apis/c_pose_detection.h"
-#include "c_apis/c_dstruct.h"
-#include "c_apis/aux_batch_process.h"
-#include "serverlet/models/inference/model_init_helper.hpp"
-#include "utils/logger.h"
+#include "trtengine/c_apis/c_pose_detection.h"
+#include "trtengine/c_apis/c_dstruct.h"
+#include "trtengine/c_apis/aux_batch_process.h"
+#include "trtengine/serverlet/models/inference/model_init_helper.hpp"
+#include "trtengine/utils/logger.h"
 
 #include <opencv2/opencv.hpp>
 #include <vector>
@@ -34,9 +34,7 @@ T get_param_safe(const std::map<std::string, std::any>& params, const std::strin
         if (const T* val_ptr = std::any_cast<T>(&(it->second))) {
             return *val_ptr;
         } else {
-            LOG_WARNING("C_API", "Parameter '" + key + "' has wrong type. Expected "
-                                << typeid(T).name() << ", got " << it->second.type().name()
-                                << ". Using default value.");
+            LOG_WARNING("C_API", "Parameter '" + key + "' type mismatch. Expected type: " + typeid(T).name() + ". Using default value.");
         }
     } else {
         LOG_WARNING("C_API", "Parameter '" + key + "' not found. Using default value.");

@@ -9,7 +9,7 @@
 #include <simple_cuda_toolkits/vision/image_permute.h>
 #include <simple_cuda_toolkits/vision/image_ops.h>
 
-#include "serverlet/models/common/generic_image_to_tensor.h"
+#include "trtengine/serverlet/models/common/generic_image_to_tensor.h"
 #include <stdexcept> // For std::runtime_error
 
 void imageToCudaTensor(

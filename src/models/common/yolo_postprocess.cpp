@@ -13,8 +13,8 @@
 #include <simple_cuda_toolkits/matrix/matrix.h>
 
 // Serverlet headers
-#include "serverlet/models/common/yolo_postprocess.h"
-#include "utils/logger.h"
+#include "trtengine/serverlet/models/common/yolo_postprocess.h"
+#include "trtengine/utils/logger.h"
 
 // Define DEBUG for conditional compilation (consider moving to a global config)
 #ifndef DEBUG
