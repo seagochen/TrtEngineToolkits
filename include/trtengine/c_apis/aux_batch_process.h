@@ -20,6 +20,14 @@ struct InferenceResult {
 };
 
 
+// Struct to hold cropped images and their original indices for EfficientNet processing
+struct EfficientNetCrops {
+    std::vector<cv::Mat> cropped_images;
+    std::vector<size_t> original_indices;
+};
+
+// --------------------------------------------------------------------------------------------
+
 /**
  * @brief Processes a batch of input images using the pose detection model.
  * This function handles image preprocessing, inference, and postprocessing for pose detection.

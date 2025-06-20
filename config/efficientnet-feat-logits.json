@@ -3,7 +3,7 @@
       {
         "onnx_path": "/opt/models/efficientnet_b0_feat_logits.onnx",
         "engine_path": "/opt/models/efficientnet_b0_feat_logits.engine",
-        "precision": "fp16",
+        "precision": "fp32",
         "min_shapes": "input:1x3x224x224",
         "opt_shapes": "input:8x3x224x224",
         "max_shapes": "input:32x3x224x224",

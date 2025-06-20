@@ -1,12 +1,14 @@
 #include "trtengine/c_apis/c_pose_detection.h"
-#include "trtengine/c_apis/aux_batch_process.h"
-#include "trtengine/serverlet/models/inference/model_init_helper.hpp"
+#include "trtengine/c_apis/aux_batch_process.h" // Includes InferenceResult, run_pose_detection_stage, run_efficientnet_stage
+#include "trtengine/serverlet/models/inference/model_init_helper.hpp" // For ModelFactory
 #include "trtengine/utils/logger.h"
 
 #include <opencv2/opencv.hpp>
 #include <vector>
 #include <map>
 #include <any>
+#include <cstdlib> // For malloc, free
+#include <cstring> // For memcpy (if used for structs)
 
 // --- Global Model Pointers ---
 // 使用全局智能指针管理模型生命周期
@@ -17,22 +19,20 @@ static std::unique_ptr<InferModelBaseMulti> g_efficient_model = nullptr;
 static std::map<std::string, std::any> g_pose_pp_params;
 static std::map<std::string, std::any> g_efficient_pp_params;
 
-// 批次数据
-int g_current_batch_idx = 0;
-
 // 全局用的queue，来存储待处理的图片数据
 static std::vector<cv::Mat> g_image_queue;
 
-
-// --- Helper for safe parameter retrieval (copied from previous suggestions) ---
+// --- Helper for safe parameter retrieval ---
 template<typename T>
 T get_param_safe(const std::map<std::string, std::any>& params, const std::string& key, const T& default_value) {
     auto it = params.find(key);
     if (it != params.end()) {
-        if (const T* val_ptr = std::any_cast<T>(&(it->second))) {
-            return *val_ptr;
-        } else {
-            LOG_WARNING("C_API", "Parameter '" + key + "' type mismatch. Expected type: " + typeid(T).name() + ". Using default value.");
+        try {
+            return std::any_cast<T>(it->second);
+        } catch (const std::bad_any_cast& e) {
+            LOG_WARNING("C_API", "Parameter '" + key + "' type mismatch. Expected type: " + typeid(T).name() + ", got: " + it->second.type().name() + ". Using default value. Error: " + e.what());
+        } catch (const std::exception& e) {
+            LOG_WARNING("C_API", "Error accessing parameter '" + key + "': " + e.what() + ". Using default value.");
         }
     } else {
         LOG_WARNING("C_API", "Parameter '" + key + "' not found. Using default value.");
@@ -42,20 +42,21 @@ T get_param_safe(const std::map<std::string, std::any>& params, const std::strin
 
 
 // --- C Interface Implementations ---
+// This function registers models with the ModelFactory.
+// It's good to call this once at library initialization (e.g., first call to init_pose_detection_pipeline).
+// Since it's static in ModelFactory, it will only register once.
 void register_detection_models()
 {
-    // 注册 YOLOv8 姿态估计模型
+    // Register YOLOv8 Pose model
     ModelFactory::registerModel("YoloV8_Pose", [](const std::string& engine_path, const std::map<std::string, std::any>& params) {
+        int maximum_batch = get_param_safe<int>(params, "maximum_batch", 1);
+        int maximum_items = get_param_safe<int>(params, "maximum_items", 100);
+        int infer_features = get_param_safe<int>(params, "infer_features", 56);
+        int infer_samples = get_param_safe<int>(params, "infer_samples", 8400);
 
-        // 从参数中获取必要的配置
-        int maximum_batch = GET_PARAM(params, "maximum_batch", int);
-        int maximum_items = GET_PARAM(params, "maximum_items", int);
-        int infer_features = GET_PARAM(params, "infer_features", int);
-        int infer_samples = GET_PARAM(params, "infer_samples", int);
+        std::vector<TensorDefinition> output_tensor_defs = {{"output0", {maximum_batch, infer_features, infer_samples}}};
 
-        std::vector<TensorDefinition> output_tensor_defs = std::vector<TensorDefinition>{{"output0", {maximum_batch, infer_features, infer_samples}}};
-
-        // YOLOv8 姿态估计的转换函数
+        // YOLOv8 Pose converter function
         auto pose_converter = [](const std::vector<float>& input, std::vector<YoloPose>& output, int features, int results) {
             cvtXYWHCoordsToYoloPose(input, output, features, results);
         };
@@ -65,7 +66,7 @@ void register_detection_models()
         );
     });
 
-    // 注册 EfficientNet 模型
+    // Register EfficientNet model
     ModelFactory::registerModel("EfficientNet", [](const std::string& engine_path, const std::map<std::string, std::any>& params) {
         int maximum_batch = GET_PARAM(params, "maximum_batch", int);
         return std::make_unique<EfficientFeats>(engine_path, maximum_batch);
@@ -75,21 +76,25 @@ void register_detection_models()
 
 bool init_pose_detection_pipeline(const char* yolo_engine_path, const char* efficient_engine_path, int max_items, float cls, float iou)
 {
-    // 确保 ModelFactory 已初始化/模型已注册
-    register_detection_models();
+    // Ensure ModelFactory is initialized/models registered
+    static bool models_registered = false;
+    if (!models_registered) {
+        register_detection_models();
+        models_registered = true;
+    }
 
-    // 为 YoloPose 模型创建参数
-    g_pose_pp_params["maximum_batch"] = 8;          // TODO: 硬编码为8， 后续从config中读取
+    // Set YoloPose model creation and post-processing parameters
+    g_pose_pp_params["maximum_batch"] = 8;
     g_pose_pp_params["maximum_items"] = max_items;
-    g_pose_pp_params["infer_features"] = 56;        // TODO: 硬编码为56， 后续从config中读取
-    g_pose_pp_params["infer_samples"] = 8400;       // TODO: 硬编码为8400， 后续从config中读取
+    g_pose_pp_params["infer_features"] = 56;
+    g_pose_pp_params["infer_samples"] = 8400;
     g_pose_pp_params["cls"] = cls;
     g_pose_pp_params["iou"] = iou;
 
-    // EfficientNet 后处理不需要自定义参数，仅设置最大 batch
-    g_efficient_pp_params["maximum_batch"] = 32;    // TODO: 硬编码为32， 后续从config中读取
+    // Set EfficientNet model creation and post-processing parameters
+    g_efficient_pp_params["maximum_batch"] = 32;
 
-    // 创建 YOLOv8 姿态估计模型
+    // Create YOLOv8 Pose Estimation model
     g_pose_model = ModelFactory::createModel(
         "YoloV8_Pose", yolo_engine_path, g_pose_pp_params
     );
@@ -98,13 +103,13 @@ bool init_pose_detection_pipeline(const char* yolo_engine_path, const char* effi
         return false;
     }
 
-    // 创建 EfficientNet 模型
+    // Create EfficientNet model
     g_efficient_model = ModelFactory::createModel(
         "EfficientNet", efficient_engine_path, g_efficient_pp_params
     );
     if (!g_efficient_model) {
         LOG_ERROR("C_API", "Create EfficientNet model failed.");
-        g_pose_model.reset(); // 如果 EfficientNet 创建失败则清理
+        g_pose_model.reset(); // Clean up if EfficientNet fails
         return false;
     }
 
@@ -113,7 +118,7 @@ bool init_pose_detection_pipeline(const char* yolo_engine_path, const char* effi
 }
 
 
-void add_image_to_pose_detection_pipeline(const unsigned char* image_data_in_bgr, int width, int height) 
+void add_image_to_pose_detection_pipeline(const unsigned char* image_data_in_bgr, int width, int height)
 {
     if (!g_pose_model) {
         LOG_ERROR("C_API", "Pose model not initialized. Call init_pose_detection_pipeline first.");
@@ -123,65 +128,128 @@ void add_image_to_pose_detection_pipeline(const unsigned char* image_data_in_bgr
         LOG_ERROR("C_API", "Invalid image data pointer in add_image_to_pose_detection_pipeline.");
         return;
     }
-
-    // 1. Convert raw image data to cv::Mat
-    cv::Mat original_image(height, width, CV_8UC3, (void*)image_data_in_bgr);
-    if (original_image.empty()) {
-        LOG_ERROR("C_API", "Failed to create cv::Mat from input image data.");
+    if (width <= 0 || height <= 0) {
+        LOG_ERROR("C_API", "Invalid image dimensions (width=" + std::to_string(width) + ", height=" + std::to_string(height) + ") in add_image_to_pose_detection_pipeline.");
         return;
     }
 
-    // 2. Store the preprocessed image in the global queue
+    // Convert raw image data to cv::Mat
+    // Make sure to create a deep copy if original_image might go out of scope or change
+    cv::Mat original_image(height, width, CV_8UC3, (void*)image_data_in_bgr, cv::Mat::AUTO_STEP);
+
+    // Store the image in the global queue
     g_image_queue.push_back(original_image.clone()); // Clone to ensure the data is owned by the queue
+    LOG_VERBOSE_TOPIC("C_API", "ImageQueue", "Image added to queue. Current queue size: " + std::to_string(g_image_queue.size()));
 }
 
 
-bool run_pose_detection_pipeline(void **out_results, int *out_num_results)
+bool run_pose_detection_pipeline(C_InferenceResult** out_results, int *out_num_results)
 {
+    // Initialize output pointers to null/zero in case of early return
+    *out_results = nullptr;
+    *out_num_results = 0;
+
     if (!g_pose_model || !g_efficient_model) {
         LOG_ERROR("C_API", "Models not initialized. Call init_pose_detection_pipeline first.");
         return false;
     }
 
-    // 确认 g_image_queue 不为空
+    // If g_image_queue is empty, nothing to process
     if (g_image_queue.empty()) {
         LOG_WARNING("C_API", "No images in the queue to process.");
-        return true; // 没有图片处理，但也算成功完成
+        // This is not an error, just no data. Return success with 0 results.
+        return true;
     }
 
-    // 启动管道，执行yolo姿态检测
-    auto yolo_processed_batch_results = run_pose_detection_stage(g_image_queue, g_pose_model, g_pose_pp_params);
+    // --- Stage 1: Run YOLOv8 Pose Detection Batch Processing ---
+    // `g_image_queue` will be consumed by run_pose_detection_stage
+    std::vector<InferenceResult> pose_stage_results = run_pose_detection_stage(
+        g_image_queue, // This vector will be emptied by the call
+        g_pose_model,
+        g_pose_pp_params
+    );
 
-    // TODO 首先，对所有的照片都执行 process_batch_images_by_pose_engine 获取初步的检测结果
-    // 注意 g_image_queue 中的图片在这里会被消耗掉，因此执行克隆任务
+    if (g_image_queue.empty()) { // Verify images were consumed (optional check)
+        LOG_VERBOSE_TOPIC("C_API", "RunPipeline", "Image queue consumed after pose stage.");
+    } else {
+        LOG_WARNING("C_API", "Image queue not fully consumed by pose stage. Remaining: " + std::to_string(g_image_queue.size()));
+    }
 
-    // TODO 然后，对每张图片单独使用 process_batch_images_by_efficient_engine 以获取完整的检测结果
-    //
 
+    // --- Stage 2: Run EfficientNet Classification/Feature Extraction ---
+    // `pose_stage_results` is passed by const reference, so it's not modified.
+    std::vector<InferenceResult> final_cpp_results = run_efficientnet_stage(
+        pose_stage_results,
+        g_efficient_model,
+        g_efficient_pp_params
+    );
+
+    // --- Convert C++ results (std::vector<InferenceResult>) to C-compatible output (C_InferenceResult**) ---
+    *out_num_results = static_cast<int>(final_cpp_results.size());
+
+    // Allocate memory for the array of C_InferenceResult pointers
+    *out_results = (C_InferenceResult*)malloc(sizeof(C_InferenceResult) * (*out_num_results));
+    if (!*out_results) {
+        LOG_ERROR("C_API", "Failed to allocate memory for C_InferenceResult array.");
+        *out_num_results = 0;
+        return false;
+    }
+
+    // Populate each C_InferenceResult
+    for (int i = 0; i < *out_num_results; ++i) {
+        const InferenceResult& cpp_result = final_cpp_results[i];
+        C_InferenceResult& c_result = (*out_results)[i];
+
+        c_result.num_detected = cpp_result.num_detected; // Direct copy of detection count
+
+        if (cpp_result.num_detected > 0 && !cpp_result.detections.empty()) {
+            // Allocate memory for the detections array within this C_InferenceResult
+            c_result.detections = (C_Extended_Person_Feats*)malloc(sizeof(C_Extended_Person_Feats) * cpp_result.detections.size());
+            if (!c_result.detections) {
+                LOG_ERROR("C_API", "Failed to allocate memory for detections in C_InferenceResult " + std::to_string(i));
+                // Clean up previously allocated detections and the main array
+                for (int j = 0; j < i; ++j) {
+                    free((*out_results)[j].detections);
+                }
+                free(*out_results);
+                *out_results = nullptr;
+                *out_num_results = 0;
+                return false; // Critical memory allocation failure
+            }
+            // Copy the actual C_Extended_Person_Feats data
+            // Use memcpy for raw bytes copy, or loop for element-wise copy if C++ objects inside (not here)
+            std::memcpy(c_result.detections, cpp_result.detections.data(), sizeof(C_Extended_Person_Feats) * cpp_result.detections.size());
+            LOG_VERBOSE_TOPIC("C_API", "RunPipeline", "Copied " + std::to_string(cpp_result.detections.size()) + " detections for image " + std::to_string(i));
+        } else {
+            // No detections or error, set detections pointer to null
+            c_result.detections = nullptr;
+            LOG_VERBOSE_TOPIC("C_API", "RunPipeline", "No detections for image " + std::to_string(i) + ", setting detections to nullptr.");
+        }
+    }
+
+    LOG_INFO("C_API", "Pipeline executed successfully and results converted to C structs.");
     return true;
 }
 
 void deinit_pose_detection_pipeline() {
     g_pose_model.reset();
     g_efficient_model.reset();
-    LOG_INFO("C_API", "Pose detection pipeline models deinitialized.");
+    g_image_queue.clear(); // Clear any remaining images in the queue
+    LOG_INFO("C_API", "Pose detection pipeline models and queue deinitialized.");
 }
 
-
-void release_inference_result(void* result) {
-    if (result) {
-
-        // 将 void* 转换为 C_InferenceResult*
-        C_InferenceResult* inference_result = static_cast<C_InferenceResult*>(result);
-
-        // 释放 detections 数组
-        if (inference_result->detections) {
-            delete[] inference_result->detections; // 释放 detections 数组
-            inference_result->detections = nullptr; // 避免悬空指针
+// Corrected memory release function for C_InferenceResult output
+void release_inference_result(C_InferenceResult* result_array, int count) {
+    if (result_array) {
+        for (int i = 0; i < count; ++i) {
+            if (result_array[i].detections) {
+                free(result_array[i].detections); // Free detections array for each C_InferenceResult
+                result_array[i].detections = nullptr;
+            }
         }
-
-        // 释放 C_InferenceResult 结构体本身
-        delete inference_result; // 释放 C_InferenceResult 结构体
-        inference_result = nullptr; // 避免悬空指针
+        free(result_array); // Free the main C_InferenceResult array
+        LOG_INFO("C_API", "Released " + std::to_string(count) + " C_InferenceResult objects and their nested detections.");
+    } else {
+        LOG_WARNING("C_API", "Attempted to release a null C_InferenceResult array.");
     }
 }

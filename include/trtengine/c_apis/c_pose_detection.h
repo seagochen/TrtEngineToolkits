@@ -37,14 +37,19 @@ extern "C" {
     void add_image_to_pose_detection_pipeline(const unsigned char* image_data_in_bgr, int width, int height);
 
     /**
-     * @brief 对单张图片进行姿态检测和信息扩充。
+     * @brief 对排队的所有图片进行姿态检测和信息扩充。
      * 这是一个阻塞调用，内部会执行预处理、推理和后处理。
+     * 调用成功后，内部队列 `g_image_queue` 将被清空。
      *
-     * @param out_results 指向 C_InferenceResult 数组的指针，用于存储检测结果。另外注意，调用者需要手工释放内存。
-     * @param out_num_results 指向整数的指针，用于存储检测结果数量, 如果输入10张图片，一定会返回10个结果，
-     * @return bool 是否成功执行整个流程 (1 for true, 0 for false)
+     * @param out_results 指向 C_InferenceResult 数组的指针的指针。
+     * 函数会内部为此数组及其嵌套的 `detections` 分配内存。
+     * 调用者必须通过 `release_inference_result` 释放此内存。
+     * @param out_num_results 指向整数的指针，用于存储检测结果数组的大小。
+     * 这个数量将等于 `add_image_to_pose_detection_pipeline` 添加的图片数量。
+     * @return bool 是否成功执行整个流程 (1 for true, 0 for false)。
+     * 即使没有检测到物体，如果流程没有失败，也会返回 `true`。
      */
-    bool run_pose_detection_pipeline(void **out_results, int *out_num_results);
+    bool run_pose_detection_pipeline(C_InferenceResult** out_results, int *out_num_results); // Corrected void* to C_InferenceResult**
 
     /**
      * @brief 销毁所有已加载的模型。
@@ -52,15 +57,16 @@ extern "C" {
     void deinit_pose_detection_pipeline();
 
     /**
-     * @brief 释放 C_InferenceResult 结构体的内存。
-     * 注意：调用此函数后，result 指向的内存将被释放，不能再访问。
+     * @brief 释放由 `run_pose_detection_pipeline` 函数分配的 C_InferenceResult 数组及其内部的检测结果内存。
+     * 注意：调用此函数后，`result_array` 指向的内存将被释放，不能再访问。
      *
-     * @param result 指向 C_InferenceResult 的指针
+     * @param result_array 指向 C_InferenceResult 数组的指针。
+     * @param count 数组中的元素数量，应与 `run_pose_detection_pipeline` 返回的 `out_num_results` 相同。
      */
-    void release_inference_result(void* result);
+    void release_inference_result(C_InferenceResult* result_array, int count); // Corrected void* to C_InferenceResult* and added count
 
 #ifdef __cplusplus
-};
+}
 #endif
 
 #endif // C_POSE_DETECTION_H

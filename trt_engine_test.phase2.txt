@@ -9,19 +9,23 @@
 
 #include <opencv2/opencv.hpp>
 
-#include "trtengine/c_apis/c_pose_detection.h"
+#include "trtengine/c_apis/c_pose_detection.h" // Includes C_InferenceResult and C_Extended_Person_Feats
 #include "trtengine/utils/logger.h"
 
 int main()
 {
+    // Enable detailed logging for debugging
+    // This depends on your logger implementation. Example:
+    // Logger::setLogLevel(LogLevel::DEBUG_V3);
+
     std::string yolo_engine_path = "/opt/models/yolov8s-pose.engine";
     std::string efficient_engine_path = "/opt/models/efficientnet_b0_feat_logits.engine";
 
-    // 初始化pose检测模型
+    // Initialize pose detection pipeline
     if (!init_pose_detection_pipeline(
         yolo_engine_path.c_str(),
         efficient_engine_path.c_str(),
-        100, 0.4f, 0.3f))
+        100, 0.4f, 0.3f)) // Using 0.3f for IOU to potentially get more results
     {
         deinit_pose_detection_pipeline();
         LOG_ERROR("TrtEngineDemo", "Initialization failed for pose detection pipeline.");
@@ -29,7 +33,7 @@ int main()
     }
     LOG_INFO("TrtEngineDemo", "Pose detection pipeline initialized successfully.");
 
-    // 加载测试图片
+    // Load test images
     std::vector<std::string> batch_images_paths = {
         "/opt/images/supermarket/customer1.png",
         "/opt/images/supermarket/customer2.png",
@@ -39,7 +43,6 @@ int main()
         "/opt/images/supermarket/customer6.png",
         "/opt/images/supermarket/customer7.png",
         "/opt/images/supermarket/customer8.png",
-
         "/opt/images/supermarket/staff1.png",
         "/opt/images/supermarket/staff2.png",
         "/opt/images/supermarket/staff3.png",
@@ -50,7 +53,7 @@ int main()
         "/opt/images/supermarket/staff8.png",
     };
 
-    // 读取图片
+    // Read images
     std::vector<cv::Mat> images_blobs;
     for (const auto& image_path : batch_images_paths)
     {
@@ -58,39 +61,104 @@ int main()
         if (img.empty())
         {
             LOG_ERROR("TrtEngineDemo", "Failed to read image: " + image_path);
+            // In a real application, you might skip this image or handle the error gracefully
+            deinit_pose_detection_pipeline();
             return -1;
         }
         images_blobs.push_back(img);
     }
     LOG_DEBUG_V2("TrtEngineDemo", "Loaded " + std::to_string(images_blobs.size()) + " images for pose detection.");
 
-    // 将图片添加到pose检测管道中
-    for (int i = 0; i < images_blobs.size(); ++i)
+    // Add images to the pose detection pipeline queue
+    for (size_t i = 0; i < images_blobs.size(); ++i) // Use size_t for loop variable to avoid comparison warning
     {
         add_image_to_pose_detection_pipeline(images_blobs[i].data, images_blobs[i].cols, images_blobs[i].rows);
         LOG_DEBUG_V1("TrtEngineDemo",
-            "Added image " + batch_images_paths[i] + " to pose detection pipeline, size: " +
+            "Added image " + batch_images_paths[i] + " to pipeline queue, size: " +
             std::to_string(images_blobs[i].cols) + "x" + std::to_string(images_blobs[i].rows));
     }
 
-    // 启动pose检测
+    // Run pose detection on the batch of images currently in the queue
     LOG_INFO("TrtEngineDemo", "Starting pose detection on the batch of images.");
-    void* out_results = nullptr;
-    int out_num_results = 0;
-    if (!run_pose_detection_pipeline(&out_results, &out_num_results))
+
+    // Declare C-style output pointers
+    C_InferenceResult* c_results_array = nullptr; // This will point to the array of C_InferenceResult
+    int num_images_processed = 0;                 // This will store the count of results (should match images added)
+
+    // Call the C API function
+    if (!run_pose_detection_pipeline(&c_results_array, &num_images_processed))
     {
         LOG_ERROR("TrtEngineDemo", "Pose detection pipeline failed to run.");
+        // If run fails, c_results_array should be nullptr and num_images_processed 0,
+        // so no need to call release_inference_result here.
         deinit_pose_detection_pipeline();
         return -1;
-    } 
+    }
 
-    // 释放推理结果
+    LOG_INFO("TrtEngineDemo", "Pose detection completed successfully. Received " + std::to_string(num_images_processed) + " results.");
+
+    // --- Print Results ---
+    if (c_results_array != nullptr && num_images_processed > 0) {
+        for (int i = 0; i < num_images_processed; ++i) {
+            const C_InferenceResult& image_result = c_results_array[i];
+
+            std::cout << "\n--- Image " << (i + 1) << " (" << batch_images_paths[i] << ") ---\n";
+            std::cout << "  Detected " << image_result.num_detected << " persons.\n";
+
+            if (image_result.num_detected > 0 && image_result.detections != nullptr) {
+                for (int j = 0; j < image_result.num_detected; ++j) {
+                    const C_Extended_Person_Feats& person = image_result.detections[j];
+                    std::cout << "    Person " << (j + 1) << ":\n";
+                    std::cout << "      Box: (" << person.box.x1 << ", " << person.box.y1 << ") - ("
+                              << person.box.x2 << ", " << person.box.y2 << ")\n";
+                    std::cout << "      Confidence: " << person.confidence << "\n";
+                    std::cout << "      Class ID (EfficientNet): " << person.class_id << "\n";
+
+                    // Printing keypoints
+                    // person.pts;
+
+                    // Since num_kps is not in C_Extended_Person_Feats anymore, iterate through fixed 17 keypoints
+                    // and check score to determine if it's a valid keypoint.
+                    int valid_kps_count = 0;
+                    for (int k = 0; k < 17; ++k) {
+                        if (person.pts[k].score > 0.0f) { // Check if keypoint is valid (score > 0)
+                            std::cout << "        KP " << k << ": (" << person.pts[k].x << ", "
+                                      << person.pts[k].y << "), Score: " << person.pts[k].score << "\n";
+                            valid_kps_count++;
+                        }
+                    }
+                    if (valid_kps_count == 0) {
+                        std::cout << "        No valid keypoints detected.\n";
+                    }
+
+                    // Printing features (optional, as it's a long array)
+                    /*
+                    std::cout << "      Features: [";
+                    for (int k = 0; k < 256; ++k) {
+                        std::cout << person.features[k] << (k == 255 ? "" : ", ");
+                    }
+                    std::cout << "]\n";
+                    */
+                }
+            } else if (image_result.num_detected == -1) {
+                 std::cout << "    Processing error occurred for this image.\n";
+            } else {
+                 std::cout << "    No persons detected in this image.\n";
+            }
+        }
+    } else {
+        std::cout << "No results array returned or no images processed.\n";
+    }
+
+    // Release inference results
     LOG_INFO("TrtEngineDemo", "Releasing inference results.");
-    release_inference_result(out_results);
-    LOG_INFO("TrtEngineDemo", "Pose detection completed successfully.");
+    release_inference_result(c_results_array, num_images_processed); // Pass both the array pointer and count
+    LOG_INFO("TrtEngineDemo", "Inference results released successfully.");
 
-    // 删除模型
+    // Deinitialize models
     LOG_INFO("TrtEngineDemo", "Starting to deinitialize pose detection pipeline.");
     deinit_pose_detection_pipeline();
+    LOG_INFO("TrtEngineDemo", "Pose detection pipeline deinitialized successfully.");
+
     return 0;
 }
