@@ -2,8 +2,8 @@
 // Created by vipuser on 24-12-25.
 //
 
-#include "serverlet/trt_engine/trt_engine.h"
-#include "serverlet/utils/logger.h"
+#include "trtengine/serverlet/trt_engine/trt_engine.h"
+#include "trtengine/utils/logger.h"
 
 #include <fstream>
 

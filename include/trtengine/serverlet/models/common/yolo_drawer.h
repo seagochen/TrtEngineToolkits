@@ -6,7 +6,7 @@
 #define YOLO_DRAWER_H
 
 #include <opencv2/opencv.hpp>
-#include "serverlet/models/common/yolo_dstruct.h"
+#include "trtengine/serverlet/models/common/yolo_dstruct.h"
 
 
 // Define colors in BGR format

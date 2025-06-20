@@ -2,10 +2,12 @@
 // Created by user on 4/22/25.
 //
 
-#include "serverlet/trt_engine/trt_engine_multi.h"
-#include "serverlet/utils/logger.h"
-#include "NvInferVersion.h"  // 一定要包含这个头，才能拿到 NV_TENSORRT_MAJOR 宏
+
+#include <NvInferVersion.h>  // 一定要包含这个头，才能拿到 NV_TENSORRT_MAJOR 宏
 #include <fstream>
+
+#include "trtengine/serverlet/trt_engine/trt_engine_multi.h"
+#include "trtengine/utils/logger.h"
 
 // Temporary debugging - Check macro values
 #define STRINGIFY(x) #x
@@ -284,9 +286,9 @@ bool TrtEngineMultiTs::infer(
         return false;
     }
 
-    // 这里假设只有在 TRT > 8.5 时，才有 setInput/OutputTensorAddress + enqueueV3
-#if (NV_TENSORRT_MAJOR > 8) || (NV_TENSORRT_MAJOR == 8 && NV_TENSORRT_MINOR > 5)
-    // ---- TensorRT 8.5+ 新 API 路径 ----
+    // 只有在 TensorRT 8.6+ 版本才支持新的 API: setInput/OutputTensorAddress + enqueueV3
+#if (NV_TENSORRT_MAJOR > 8) || (NV_TENSORRT_MAJOR == 8 && NV_TENSORRT_MINOR > 6)
+    // ---- TensorRT 8.6+ 新 API 路径 ----
     for (size_t i = 0; i < inputs.size(); ++i) {
         if (!g_ptr_context->setInputTensorAddress(
                 m_inputNames[i].c_str(),

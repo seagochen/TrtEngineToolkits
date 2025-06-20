@@ -1,0 +1,37 @@
+{
+  "onnx_path": "/opt/models/efficientnet_b0_feat_logits.onnx",
+  "target_path": "/opt/models/efficientnet_b0_feat_logits.engine",
+
+  "model_information": {
+    "name": "EfficientNet B0 Feature and Logits",
+    "description": "EfficientNet B0 model for feature extraction and logits output",
+    "version": "1.0.0",
+    "author": "Orlando Chen",
+    "date": "2023-10-01",
+    "input_tensors": [
+      {
+        "name": "input",
+        "dimensions": [1, 3, 224, 224]
+      }
+    ],
+    "output_tensors": [
+      {
+        "name": "logits",
+        "dimensions": [1, 2]
+      },
+      {
+        "name": "feat",
+        "dimensions": [1, 256]
+      }
+    ]
+  },
+
+  "trt_config": {
+    "precision": "fp32",
+    "min_shapes": "input:1x3x224x224",
+    "opt_shapes": "input:8x3x224x224",
+    "max_shapes": "input:32x3x224x224",
+    "verbose": true
+  }
+}
+
