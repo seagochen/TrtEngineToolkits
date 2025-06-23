@@ -107,7 +107,7 @@ InferYoloV8<YoloResultType, ConvertFunc>::~InferYoloV8() {
 template<typename YoloResultType, typename ConvertFunc>
 void InferYoloV8<YoloResultType, ConvertFunc>::preprocess(const cv::Mat& image, const int batchIdx) {
     if (batchIdx >= maximum_batch) {
-        LOG_ERROR("InferYoloV8", "Preprocess: batchIdx (" + std::to_string(batchIdx) + ") >= maximumBatch (" + std::to_string(maximum_batch) + ")");
+        LOG_ERROR("InferYoloV8", "Preprocess: batchIdx (" + std::to_string(batchIdx) + ") >= maximumBatch (" + std::to_string(maximum_batch) + ").");
         return;
     }
 

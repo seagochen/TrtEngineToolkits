@@ -149,7 +149,7 @@ int main()
         LOG_ERROR("TrtEngineDemo", "Initialization failed for pose_extend detection pipeline.");
         return -1;
     }
-    LOG_INFO("TrtEngineDemo", "Pose detection pipeline initialized successfully.");
+    LOG_INFO("TrtEngineDemo", "Pose detection pipeline initialized successfully");
 
     // Load test images
     std::vector<std::string> batch_images_paths = {

@@ -74,7 +74,7 @@ inline EfficientFeats::EfficientFeats(
     vec_types.resize(2);
 
     // 如果所有初始化都在初始化列表中完成，构造函数体可以为空
-    LOG_VERBOSE_TOPIC("EfficientNetFeatCls", "constructor", "EfficientNetForFeatAndClassification 实例已创建。");
+    LOG_VERBOSE_TOPIC("EfficientNetFeatCls", "constructor", "EfficientNetForFeatAndClassification instance created successfully.");
 }
 
 
@@ -87,7 +87,7 @@ inline EfficientFeats::~EfficientFeats() {
 
 inline void EfficientFeats::preprocess(const cv::Mat& image, int batchIdx) {
     if (batchIdx >= maximum_batch) {
-        LOG_ERROR("EfficientNetFeatCls", "Preprocess: batchIdx (" + std::to_string(batchIdx) + ") >= maximumBatch (" + std::to_string(maximum_batch) + ")");
+        LOG_ERROR("EfficientNetFeatCls", "Preprocess: batchIdx (" + std::to_string(batchIdx) + ") >= maximumBatch (" + std::to_string(maximum_batch) + ").");
         return;
     }
 

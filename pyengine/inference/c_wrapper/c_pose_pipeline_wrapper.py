@@ -226,7 +226,8 @@ class PosePipelineWrapper:
             if success and out_results_ptr:
                 try:
                     self._pose_detection_lib.release_inference_result(out_results_ptr, out_num_results.value)
-                    logger.debug("PosePipelineWrapper", "C-allocated inference results released.")
+                    # logger.debug("PosePipelineWrapper", "C-allocated inference results released.")
+
                 except Exception as release_e:
                     logger.error("PosePipelineWrapper", f"Error releasing C-allocated memory: {release_e}")
 

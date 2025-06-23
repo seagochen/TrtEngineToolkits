@@ -205,7 +205,9 @@ std::vector<InferenceResult> run_pose_detection_stage(
 
         remaining_images_count = images.size(); // Update remaining count
 
+#if DEBUG
         LOG_VERBOSE_TOPIC("BatchProcess", "Pose", "Processing a batch of " + std::to_string(current_batch_count) + " images.");
+#endif
 
         // Process the current batch of images
         std::vector<InferenceResult> batch_results_from_internal = process_single_batch_internal(

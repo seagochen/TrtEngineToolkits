@@ -22,7 +22,7 @@ InferModelBaseMulti::InferModelBaseMulti(
 
     // 创建 CUDA 流
     if (cudaStreamCreate(&g_stream) != cudaSuccess) {
-        LOG_ERROR("InferModelBase", "Failed to create CUDA stream");
+        LOG_ERROR("InferModelBase", "Failed to create CUDA stream.");
     }
 
     // 加载模型并创建 Context
@@ -33,7 +33,7 @@ InferModelBaseMulti::InferModelBaseMulti(
 
     // 分配输入/输出 Buffer
     if (!allocateBufForTrtEngine(g_input_defs, g_output_defs)) {
-        LOG_ERROR("InferModelBase", "Failed to allocate buffers");
+        LOG_ERROR("InferModelBase", "Failed to allocate buffers.");
         exit(EXIT_FAILURE);
     }
 }
@@ -80,7 +80,7 @@ bool InferModelBaseMulti::loadEngine(
     std::vector<nvinfer1::Dims4> input_dims;
     for (const auto& def : input_defs) {
         if (def.dims.size() != 4) {
-            LOG_ERROR("loadEngine", "Each input must be 4D (batch,C,H,W)");
+            LOG_ERROR("loadEngine", "Each input must be 4D (batch,C,H,W).");
             return false;
         }
         input_names.push_back(def.name);
@@ -92,7 +92,7 @@ bool InferModelBaseMulti::loadEngine(
     }
 
     if (!g_ptr_engine->createContext(input_names, input_dims, output_names)) {
-        LOG_ERROR("loadEngine", "createContext failed");
+        LOG_ERROR("loadEngine", "createContext failed.");
         return false;
     }
     return true;

@@ -22,6 +22,8 @@ static std::map<std::string, std::any> g_efficient_pp_params;
 // 全局用的queue，来存储待处理的图片数据
 static std::vector<cv::Mat> g_image_queue;
 
+#define DEBUG 0
+
 // --- Helper for safe parameter retrieval ---
 template<typename T>
 T get_param_safe(const std::map<std::string, std::any>& params, const std::string& key, const T& default_value) {
@@ -146,7 +148,10 @@ void add_image_to_pose_detection_pipeline(const unsigned char* image_data_in_bgr
 
     // Store the image in the global queue
     g_image_queue.push_back(original_image); // Clone to ensure the data is owned by the queue
+
+#if DEBUG
     LOG_VERBOSE_TOPIC("C_API", "ImageQueue", "Image added to queue. Current queue size: " + std::to_string(g_image_queue.size()));
+#endif
 }
 
 
@@ -176,13 +181,6 @@ bool run_pose_detection_pipeline(C_Inference_Result** out_results, int *out_num_
         g_pose_pp_params
     );
 
-    if (g_image_queue.empty()) { // Verify images were consumed (optional check)
-        LOG_VERBOSE_TOPIC("C_API", "RunPipeline", "Image queue consumed after pose_extend stage.");
-    } else {
-        LOG_WARNING("C_API", "Image queue not fully consumed by pose_extend stage. Remaining: " + std::to_string(g_image_queue.size()));
-    }
-
-
     // --- Stage 2: Run EfficientNet Classification/Feature Extraction ---
     // `pose_stage_results` is passed by const reference, so it's not modified.
     std::vector<InferenceResult> final_cpp_results = run_efficientnet_stage(
@@ -196,7 +194,7 @@ bool run_pose_detection_pipeline(C_Inference_Result** out_results, int *out_num_
 
     // Allocate memory for the array of C_Inference_Result pointers
     *out_results = (C_Inference_Result*)malloc(sizeof(C_Inference_Result) * (*out_num_results));
-    if (!*out_results) {
+    if (!*out_results) { // Memory allocation failed
         LOG_ERROR("C_API", "Failed to allocate memory for C_Inference_Result array.");
         *out_num_results = 0;
         return false;
@@ -212,7 +210,7 @@ bool run_pose_detection_pipeline(C_Inference_Result** out_results, int *out_num_
         if (cpp_result.num_detected > 0 && !cpp_result.detections.empty()) {
             // Allocate memory for the detections array within this C_Inference_Result
             c_result.detections = (C_Extended_Person_Feats*)malloc(sizeof(C_Extended_Person_Feats) * cpp_result.detections.size());
-            if (!c_result.detections) {
+            if (!c_result.detections) { // Memory allocation failed for detections
                 LOG_ERROR("C_API", "Failed to allocate memory for detections in C_Inference_Result " + std::to_string(i));
                 // Clean up previously allocated detections and the main array
                 for (int j = 0; j < i; ++j) {
@@ -226,7 +224,11 @@ bool run_pose_detection_pipeline(C_Inference_Result** out_results, int *out_num_
             // Copy the actual C_Extended_Person_Feats data
             // Use memcpy for raw bytes copy, or loop for element-wise copy if C++ objects inside (not here)
             std::memcpy(c_result.detections, cpp_result.detections.data(), sizeof(C_Extended_Person_Feats) * cpp_result.detections.size());
+            
+#if DEBUG
             LOG_VERBOSE_TOPIC("C_API", "RunPipeline", "Copied " + std::to_string(cpp_result.detections.size()) + " detections for image " + std::to_string(i));
+#endif
+
         } else {
             // No detections or error, set detections pointer to null
             c_result.detections = nullptr;
@@ -234,7 +236,10 @@ bool run_pose_detection_pipeline(C_Inference_Result** out_results, int *out_num_
         }
     }
 
+#if DEBUG
     LOG_INFO("C_API", "Pipeline executed successfully and results converted to C structs.");
+#endif
+
     return true;
 }
 
@@ -255,7 +260,11 @@ void release_inference_result(C_Inference_Result* result_array, int count) {
             }
         }
         free(result_array); // Free the main C_Inference_Result array
+
+#if DEBUG
         LOG_INFO("C_API", "Released " + std::to_string(count) + " C_Inference_Result objects and their nested detections.");
+#endif
+    
     } else {
         LOG_WARNING("C_API", "Attempted to release a null C_Inference_Result array.");
     }

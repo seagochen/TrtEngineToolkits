@@ -60,7 +60,7 @@ bool TrtEngine::loadFromFile(const std::string& engineFile) {
     // Check if the file exists and can be opened
     std::ifstream cls_file(engineFile, std::ios::binary);
     if (!cls_file.is_open()) {
-        LOG_ERROR("TrtEngine::loadFromFile", "Failed to read the binary file");
+        LOG_ERROR("TrtEngine::loadFromFile", "Failed to read the binary file.");
         return false;
     }
 
@@ -77,14 +77,14 @@ bool TrtEngine::loadFromFile(const std::string& engineFile) {
     // Deserialize the engine
     g_ptr_runtime = nvinfer1::createInferRuntime(g_logger);
     if (!g_ptr_runtime) {
-        LOG_ERROR("TrtEngine::loadFromFile", "Failed to create runtime");
+        LOG_ERROR("TrtEngine::loadFromFile", "Failed to create runtime.");
         return false;
     }
 
     // Deserialize the engine
     g_ptr_engine = g_ptr_runtime->deserializeCudaEngine(vec_data.data(), uint64_length);
     if (!g_ptr_engine) {
-        LOG_ERROR("TrtEngine::loadFromFile", "Failed to deserialize engine");
+        LOG_ERROR("TrtEngine::loadFromFile", "Failed to deserialize engine.");
         return false;
     }
 
@@ -100,7 +100,7 @@ bool TrtEngine::loadFromONNX(const std::string& onnxFile) {
     // Create the builder
     nvinfer1::IBuilder* ptr_builder = nvinfer1::createInferBuilder(g_logger);
     if (!ptr_builder) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to create builder");
+        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to create builder.");
         return false;
     }
 
@@ -110,7 +110,7 @@ bool TrtEngine::loadFromONNX(const std::string& onnxFile) {
 //     uint32_t uint32_flag = 1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
 //     nvinfer1::INetworkDefinition* network = ptr_builder->createNetworkV2(uint32_flag);
 //     if (!network) {
-//         LOG_ERROR("TrtEngineV8", "Failed to create network");
+//         LOG_ERROR("TrtEngineV8", "Failed to create network.");
 //         delete ptr_builder;
 //         return false;
 //     }
@@ -120,7 +120,7 @@ bool TrtEngine::loadFromONNX(const std::string& onnxFile) {
 //     // Create the network - Do not explicitly set the batch size
 //     nvinfer1::INetworkDefinition* ptr_network = ptr_builder->createNetworkV2(0);  // Use 0 for the flag
 //     if (!ptr_network) {
-//         LOG_ERROR("TrtEngineV8", "Failed to create network");
+//         LOG_ERROR("TrtEngineV8", "Failed to create network.");
 //         delete ptr_builder;
 //         return false;
 //     }
@@ -133,7 +133,7 @@ bool TrtEngine::loadFromONNX(const std::string& onnxFile) {
     uint32_t uint32_flag = 1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
     nvinfer1::INetworkDefinition* ptr_network = ptr_builder->createNetworkV2(uint32_flag);
     if (!ptr_network) {
-        LOG_ERROR("TrtEngineV8", "Failed to create network");
+        LOG_ERROR("TrtEngineV8", "Failed to create network.");
         delete ptr_builder;
         return false;
     }
@@ -143,7 +143,7 @@ bool TrtEngine::loadFromONNX(const std::string& onnxFile) {
     // Create the network - Do not explicitly set the batch size
     nvinfer1::INetworkDefinition* ptr_network = ptr_builder->createNetworkV2(0);  // Use 0 for the flag
     if (!ptr_network) {
-        LOG_ERROR("TrtEngineV8", "Failed to create network");
+        LOG_ERROR("TrtEngineV8", "Failed to create network.");
         delete ptr_builder;
         return false;
     }
@@ -154,7 +154,7 @@ bool TrtEngine::loadFromONNX(const std::string& onnxFile) {
     // Create the parser
     auto* ptr_parser = nvonnxparser::createParser(*ptr_network, g_logger);
     if (!ptr_parser) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to create parser");
+        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to create parser.");
         delete ptr_network;
         delete ptr_builder;
         return false;
@@ -194,7 +194,7 @@ bool TrtEngine::loadFromONNX(const std::string& onnxFile) {
     // Create the builder configuration
     nvinfer1::IBuilderConfig* ptr_config = ptr_builder->createBuilderConfig();
     if (!ptr_config) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to create builder config");
+        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to create builder config.");
         delete ptr_parser;
         delete ptr_network;
         delete ptr_builder;
@@ -207,7 +207,7 @@ bool TrtEngine::loadFromONNX(const std::string& onnxFile) {
     // Build the serialized engine
     auto ptr_serialized = ptr_builder->buildSerializedNetwork(*ptr_network, *ptr_config);
     if (!ptr_serialized) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to build serialized engine");
+        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to build serialized engine.");
         delete ptr_parser;
         delete ptr_network;
         delete ptr_builder;
@@ -218,7 +218,7 @@ bool TrtEngine::loadFromONNX(const std::string& onnxFile) {
     // Create the runtime
     g_ptr_runtime = nvinfer1::createInferRuntime(g_logger);
     if (!g_ptr_runtime) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to create runtime");
+        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to create runtime.");
         delete ptr_parser;
         delete ptr_network;
         delete ptr_builder;
@@ -229,7 +229,7 @@ bool TrtEngine::loadFromONNX(const std::string& onnxFile) {
     // Deserialize the engine
     g_ptr_engine = g_ptr_runtime->deserializeCudaEngine(ptr_serialized->data(), ptr_serialized->size());
     if (!g_ptr_engine) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to deserialize engine");
+        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to deserialize engine.");
         delete ptr_parser;
         delete ptr_network;
         delete ptr_builder;
@@ -252,7 +252,7 @@ bool TrtEngine::loadFromONNX(const std::string& onnxFile) {
 bool TrtEngine::createContext(const std::string& input_name, const nvinfer1::Dims4& input_dims) {
 
     if (!g_ptr_engine) {
-        LOG_ERROR("TrtEngine::createContext", "Engine is not loaded");
+        LOG_ERROR("TrtEngine::createContext", "Engine is not loaded.");
         return false;
     }
 
@@ -263,7 +263,7 @@ bool TrtEngine::createContext(const std::string& input_name, const nvinfer1::Dim
     }
     g_ptr_context = g_ptr_engine->createExecutionContext();
     if (!g_ptr_context) {
-        LOG_ERROR("TrtEngine::createContext", "Failed to create context");
+        LOG_ERROR("TrtEngine::createContext", "Failed to create context.");
         return false;
     }
 
@@ -276,18 +276,18 @@ bool TrtEngine::createContext(const std::string& input_name, const nvinfer1::Dim
 
 bool TrtEngine::infer(Tensor<float>& input, Tensor<float>& output) const {
     if (!g_ptr_engine) {
-        LOG_ERROR("TrtEngine::infer", "Engine is not loaded");
+        LOG_ERROR("TrtEngine::infer", "Engine is not loaded.");
         return false;
     }
 
     if (!input.ptr() || !output.ptr()) {
-        LOG_ERROR("TrtEngine::infer", "Invalid input/output tensors");
+        LOG_ERROR("TrtEngine::infer", "Invalid input/output tensors.");
         return false;
     }
 
     void* ptr_bindings[2] = {input.ptr(), output.ptr()};
     if (!g_ptr_context->executeV2(ptr_bindings)) {
-        LOG_ERROR("TrtEngine::infer", "Failed to execute context");
+        LOG_ERROR("TrtEngine::infer", "Failed to execute context.");
         return false;
     }
 
