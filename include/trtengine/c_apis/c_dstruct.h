@@ -35,11 +35,11 @@ extern "C" {
     } C_Extended_Person_Feats;
 
     // 每张图片的最终处理结果，封装了C_Extended_Pose_Feats
-    typedef struct C_InferenceResult {
+    typedef struct C_Inference_Result {
         int num_detected;                       // 检测到的物体数量, 如果检测失败则为-1，只有当
                                                 // num_detected > 0 时，detections 才有效
         C_Extended_Person_Feats* detections;    // 检测结果数组，处理结束后需要由调用方释放内存
-    } C_InferenceResult;
+    } C_Inference_Result;
 
 #ifdef __cplusplus
 };

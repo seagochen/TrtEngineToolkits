@@ -35,10 +35,10 @@ struct Yolo {
 
 /**
  * @struct YoloPoint
- * @brief Represents a point in the YOLO pose estimation context.
+ * @brief Represents a point in the YOLO pose_extend estimation context.
  *
  * This structure holds the x and y coordinates of a point, along with its confidence score.
- * It is used to represent keypoints in pose estimation tasks.
+ * It is used to represent keypoints in pose_extend estimation tasks.
  *
  * Members:
  *   x    - X-coordinate of the point.
@@ -51,10 +51,10 @@ struct YoloPoint {
 };
 
 /**
- * @brief Represents a YOLO detection result with additional pose keypoints.
+ * @brief Represents a YOLO detection result with additional pose_extend keypoints.
  *
  * Inherits basic detection fields (lx, ly, rx, ry, conf, cls) from the Yolo base struct,
- * and adds a vector of keypoints for pose estimation.
+ * and adds a vector of keypoints for pose_extend estimation.
  *
  * @see Yolo
  *
@@ -62,7 +62,7 @@ struct YoloPoint {
  * @extends Yolo
  *
  * @var std::vector<YoloPoint> pts
- *   List of keypoints associated with the detected object, used for pose estimation.
+ *   List of keypoints associated with the detected object, used for pose_extend estimation.
  */
 struct YoloPose final : Yolo {
     // lx, ly, rx, ry, conf, and cls are inherited from Yolo

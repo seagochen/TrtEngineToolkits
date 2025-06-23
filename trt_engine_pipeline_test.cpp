@@ -14,7 +14,7 @@
 #include <direct.h> // For _mkdir on Windows
 #endif
 
-#include "trtengine/c_apis/c_pose_detection.h" // Includes C_InferenceResult and C_Extended_Person_Feats
+#include "trtengine/c_apis/c_pose_detection.h" // Includes C_Inference_Result and C_Extended_Person_Feats
 #include "trtengine/utils/logger.h"
 
 // Assuming YoloDrawer class is not directly used here.
@@ -26,13 +26,13 @@
  *
  * @param source_images_640x640 A vector of the images (ALREADY RESIZED TO 640x640)
  * that correspond to the coordinate system of `c_results_array`.
- * @param c_results_array Pointer to the array of C_InferenceResult received from the pipeline.
+ * @param c_results_array Pointer to the array of C_Inference_Result received from the pipeline.
  * @param num_images_processed The number of elements in c_results_array.
  * @param output_dir The directory where the cutout images will be saved.
  */
 void visualize_and_save_person_cutouts(
     const std::vector<cv::Mat>& source_images_640x640, // Changed parameter name to reflect its content
-    const C_InferenceResult* c_results_array,
+    const C_Inference_Result* c_results_array,
     int num_images_processed,
     const std::string& output_dir = "person_cutouts")
 {
@@ -55,7 +55,7 @@ void visualize_and_save_person_cutouts(
     LOG_INFO("Visualizer", "Starting visualization and saving of person cutouts to: " + output_dir);
 
     for (int i = 0; i < num_images_processed; ++i) {
-        const C_InferenceResult& image_result = c_results_array[i];
+        const C_Inference_Result& image_result = c_results_array[i];
         // Use the already resized 640x640 image directly
         const cv::Mat& current_source_image_640x640 = source_images_640x640[i];
 
@@ -136,17 +136,17 @@ int main()
     // This depends on your logger implementation. Example:
     // Logger::setLogLevel(LogLevel::DEBUG_V3);
 
-    std::string yolo_engine_path = "/opt/models/yolov8s-pose.engine";
+    std::string yolo_engine_path = "/opt/models/yolov8s-pose_extend.engine";
     std::string efficient_engine_path = "/opt/models/efficientnet_b0_feat_logits.engine";
 
-    // Initialize pose detection pipeline
+    // Initialize pose_extend detection pipeline
     if (!init_pose_detection_pipeline(
         yolo_engine_path.c_str(),
         efficient_engine_path.c_str(),
         100, 0.4f, 0.3f)) // Using 0.3f for IOU to potentially get more results
     {
         deinit_pose_detection_pipeline();
-        LOG_ERROR("TrtEngineDemo", "Initialization failed for pose detection pipeline.");
+        LOG_ERROR("TrtEngineDemo", "Initialization failed for pose_extend detection pipeline.");
         return -1;
     }
     LOG_INFO("TrtEngineDemo", "Pose detection pipeline initialized successfully.");
@@ -186,9 +186,9 @@ int main()
         }
         original_images_blobs.push_back(img);
     }
-    LOG_DEBUG_V2("TrtEngineDemo", "Loaded " + std::to_string(original_images_blobs.size()) + " images (original size) for pose detection.");
+    LOG_DEBUG_V2("TrtEngineDemo", "Loaded " + std::to_string(original_images_blobs.size()) + " images (original size) for pose_extend detection.");
 
-    // Add images to the pose detection pipeline queue (using original_images_blobs's data, which will be resized internally)
+    // Add images to the pose_extend detection pipeline queue (using original_images_blobs's data, which will be resized internally)
     for (size_t i = 0; i < original_images_blobs.size(); ++i)
     {
         add_image_to_pose_detection_pipeline(original_images_blobs[i].data, original_images_blobs[i].cols, original_images_blobs[i].rows);
@@ -197,10 +197,10 @@ int main()
             std::to_string(original_images_blobs[i].cols) + "x" + std::to_string(original_images_blobs[i].rows));
     }
 
-    // Run pose detection on the batch of images currently in the queue
-    LOG_INFO("TrtEngineDemo", "Starting pose detection on the batch of images.");
+    // Run pose_extend detection on the batch of images currently in the queue
+    LOG_INFO("TrtEngineDemo", "Starting pose_extend detection on the batch of images.");
 
-    C_InferenceResult* c_results_array = nullptr;
+    C_Inference_Result* c_results_array = nullptr;
     int num_images_processed = 0;
 
     if (!run_pose_detection_pipeline(&c_results_array, &num_images_processed))
@@ -215,7 +215,7 @@ int main()
     // --- Print Results --- (Your existing code)
     if (c_results_array != nullptr && num_images_processed > 0) {
         for (int i = 0; i < num_images_processed; ++i) {
-            const C_InferenceResult& image_result = c_results_array[i];
+            const C_Inference_Result& image_result = c_results_array[i];
 
             std::cout << "\n--- Image " << (i + 1) << " (" << batch_images_paths[i] << ") ---\n";
             std::cout << "  Detected " << image_result.num_detected << " persons.\n";
@@ -262,7 +262,7 @@ int main()
     LOG_INFO("TrtEngineDemo", "Inference results released successfully.");
 
     // Deinitialize models
-    LOG_INFO("TrtEngineDemo", "Starting to deinitialize pose detection pipeline.");
+    LOG_INFO("TrtEngineDemo", "Starting to deinitialize pose_extend detection pipeline.");
     deinit_pose_detection_pipeline();
     LOG_INFO("TrtEngineDemo", "Pose detection pipeline deinitialized successfully.");
 

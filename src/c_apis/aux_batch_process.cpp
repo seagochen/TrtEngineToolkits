@@ -62,7 +62,7 @@ void convert_pose_to_c_struct(
     }
 }
 
-// Helper function to process a single batch of images through the pose model
+// Helper function to process a single batch of images through the pose_extend model
 // This handles preprocess, inference, and postprocess for one model's max_batch_size
 std::vector<InferenceResult> process_single_batch_internal(
     const std::vector<cv::Mat>& current_batch_input_images,     // Images for this batch
@@ -125,11 +125,11 @@ std::vector<InferenceResult> process_single_batch_internal(
             convert_pose_to_c_struct(cpp_pose_detections, current_image_result.detections);
 
         } catch (const std::bad_any_cast& e) {
-            LOG_ERROR("BatchProcess", "Error casting pose results for batch item " + std::to_string(i) + ": " + std::string(e.what()));
+            LOG_ERROR("BatchProcess", "Error casting pose_extend results for batch item " + std::to_string(i) + ": " + std::string(e.what()));
             current_image_result.num_detected = -1; // Indicate error
             current_image_result.detections.clear();
         } catch (const std::exception& e) {
-            LOG_ERROR("BatchProcess", "An unexpected error during pose postprocessing for batch item " + std::to_string(i) + ": " + std::string(e.what()));
+            LOG_ERROR("BatchProcess", "An unexpected error during pose_extend postprocessing for batch item " + std::to_string(i) + ": " + std::string(e.what()));
             current_image_result.num_detected = -1; // Indicate error
             current_image_result.detections.clear();
         }
@@ -146,7 +146,7 @@ std::vector<InferenceResult> process_single_batch_internal(
 }
 
 
-// Main function for the pose detection stage, handling multiple batches
+// Main function for the pose_extend detection stage, handling multiple batches
 std::vector<InferenceResult> run_pose_detection_stage(
     std::vector<cv::Mat>& images, // Input images (will be consumed/popped)
     const std::unique_ptr<InferModelBaseMulti>& pose_model,
@@ -154,7 +154,7 @@ std::vector<InferenceResult> run_pose_detection_stage(
 {
     std::vector<InferenceResult> final_output;
 
-    // Check if pose model is initialized
+    // Check if pose_extend model is initialized
     if (!pose_model) {
         LOG_ERROR("BatchProcess", "Pose model not initialized. Cannot process images.");
         return final_output; // Return empty output
@@ -182,7 +182,7 @@ std::vector<InferenceResult> run_pose_detection_stage(
     // 剩余多少图片待处理
     size_t remaining_images_count = images.size();
 #if DEBUG
-    LOG_INFO("BatchProcess", "Starting batch processing with pose engine for " + std::to_string(remaining_images_count) + " images.");
+    LOG_INFO("BatchProcess", "Starting batch processing with pose_extend engine for " + std::to_string(remaining_images_count) + " images.");
 #endif
 
     // Loop, processing images batch by batch until none remain
@@ -221,7 +221,7 @@ std::vector<InferenceResult> run_pose_detection_stage(
     }
 
 #if DEBUG
-    LOG_DEBUG_V3("BatchProcess", "Finished processing all images by pose engine. Total images processed: " + std::to_string(final_output.size()));
+    LOG_DEBUG_V3("BatchProcess", "Finished processing all images by pose_extend engine. Total images processed: " + std::to_string(final_output.size()));
 #endif
     return final_output;
 }
@@ -343,7 +343,7 @@ std::vector<std::pair<int, std::vector<float>>> process_single_batch_feats(
 
 // Main function for the EfficientNet stage, handling classification and feature extraction
 std::vector<InferenceResult> run_efficientnet_stage(
-    const std::vector<InferenceResult>& pose_results, // Input results from the pose detection stage
+    const std::vector<InferenceResult>& pose_results, // Input results from the pose_extend detection stage
     const std::unique_ptr<InferModelBaseMulti>& efficient_model,
     const std::map<std::string, std::any>& efficient_pp_params // EfficientNet post-processing parameters
 )
@@ -352,13 +352,13 @@ std::vector<InferenceResult> run_efficientnet_stage(
 
     // Check if efficient model is initialized
     if (!efficient_model) {
-        LOG_ERROR("BatchProcess", "Efficient model not initialized. Cannot process pose results.");
+        LOG_ERROR("BatchProcess", "Efficient model not initialized. Cannot process pose_extend results.");
         return final_output_efficient;
     }
 
-    // Check if pose results vector is valid
+    // Check if pose_extend results vector is valid
     if (pose_results.empty()) {
-        LOG_WARNING("BatchProcess", "Pose results vector is empty. No pose detections to process.");
+        LOG_WARNING("BatchProcess", "Pose results vector is empty. No pose_extend detections to process.");
         return final_output_efficient; // Return empty output, which is a 'success' for no input
     }
 
@@ -376,10 +376,10 @@ std::vector<InferenceResult> run_efficientnet_stage(
     }
 
 #if DEBUG
-    LOG_INFO("BatchProcess", "Starting EfficientNet stage for " + std::to_string(pose_results.size()) + " images' pose results.");
+    LOG_INFO("BatchProcess", "Starting EfficientNet stage for " + std::to_string(pose_results.size()) + " images' pose_extend results.");
 #endif
 
-    // Loop through each image's pose detection results from the previous stage
+    // Loop through each image's pose_extend detection results from the previous stage
     for (const auto& single_image_result : pose_results) { // single_image_result is of type InferenceResult
 
         // Create a copy of the InferenceResult for this image to modify and add to final_output

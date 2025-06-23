@@ -29,7 +29,7 @@ void test_yolo_pose()
 
     // 创建 YOLOv8 姿态估计模型
     std::unique_ptr<InferModelBaseMulti> pose_model = ModelFactory::createModel(
-        "YoloV8_Pose", "/opt/models/yolov8s-pose.engine", params
+        "YoloV8_Pose", "/opt/models/yolov8s-pose_extend.engine", params
     );
 
     // 检查模型是否成功创建
@@ -208,7 +208,7 @@ void test_yolo_pose_efficient()
 
     // 创建 YOLOv8 姿态估计模型
     std::unique_ptr<InferModelBaseMulti> pose_model = ModelFactory::createModel(
-        "YoloV8_Pose", "/opt/models/yolov8s-pose.engine", params1
+        "YoloV8_Pose", "/opt/models/yolov8s-pose_extend.engine", params1
     );
     if (!pose_model) {
         std::cerr << "Failed to create YOLOv8 Pose Estimation Model." << std::endl;
@@ -254,7 +254,7 @@ void test_yolo_pose_efficient()
     try {
         pose_detections = std::any_cast<std::vector<YoloPose>>(pose_results);
     } catch (const std::bad_any_cast& e) {
-        std::cerr << "Error casting pose results: " << e.what() << std::endl;
+        std::cerr << "Error casting pose_extend results: " << e.what() << std::endl;
         return;
     }
 
@@ -576,7 +576,7 @@ int main() {
     yolo_pose_params["infer_samples"] = 8400;
     yolo_pose_params["cls"] = 0.4f;
     yolo_pose_params["iou"] = 0.5f;
-    test_memory_leak_stress("YoloV8_Pose", "/opt/models/yolov8s-pose.engine", yolo_pose_params, "/opt/images/human_and_pets.png", true);
+    test_memory_leak_stress("YoloV8_Pose", "/opt/models/yolov8s-pose_extend.engine", yolo_pose_params, "/opt/images/human_and_pets.png", true);
 
     // YOLOv8 Detection
     std::map<std::string, std::any> yolo_detection_params;
