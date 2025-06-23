@@ -24,11 +24,11 @@ void TrtEngineMultiTs::NvLogger::log(Severity severity, const char* msg) noexcep
         case Severity::kINTERNAL_ERROR:
             LOG_ERROR_TOPIC("TensorRT","INTERNAL_ERROR",msg); break;
         case Severity::kERROR:
-            LOG_ERROR("TensorRT", msg); break;
+            LOG_ERROR_TOPIC("TensorRT", "SYS", msg); break;
         case Severity::kWARNING:
-            LOG_WARNING("TensorRT", msg); break;
+            LOG_WARNING_TOPIC("TensorRT", "SYS", msg); break;
         default:
-            LOG_VERBOSE("TensorRT", msg); break;
+            LOG_VERBOSE_TOPIC("TensorRT", "SYS", msg); break;
     }
 }
 
@@ -42,8 +42,6 @@ void TrtEngineMultiTs::cleanup() {
     if (g_ptr_context)  { delete g_ptr_context;  g_ptr_context  = nullptr; }
     if (g_ptr_engine)   { delete g_ptr_engine;   g_ptr_engine   = nullptr; }
     if (g_ptr_runtime)  { delete g_ptr_runtime;  g_ptr_runtime  = nullptr; }
-//    m_inputBindings.clear();
-//    m_outputBindings.clear();
 }
 
 bool TrtEngineMultiTs::loadFromFile(const std::string& engineFile) {
@@ -53,7 +51,8 @@ bool TrtEngineMultiTs::loadFromFile(const std::string& engineFile) {
     // Check if the file exists and can be opened
     std::ifstream cls_file(engineFile, std::ios::binary);
     if (!cls_file.is_open()) {
-        LOG_ERROR("TrtEngine::loadFromFile", "Failed to read the binary file.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "loadFromFile",
+            "Failed to read the binary file: " + engineFile);
         return false;
     }
 
@@ -63,21 +62,24 @@ bool TrtEngineMultiTs::loadFromFile(const std::string& engineFile) {
     cls_file.seekg(0, std::ios::beg);
     std::vector<char> vec_data(uint64_length);
     if (!cls_file.read(vec_data.data(), static_cast<std::streamsize>(uint64_length))) {
-        LOG_ERROR("TrtEngine::loadFromFile", "Error reading engine file: " + engineFile);
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "loadFromFile",
+            "Error reading engine file: " + engineFile);
         return false;
     }
 
     // Deserialize the engine
     g_ptr_runtime = nvinfer1::createInferRuntime(g_logger);
     if (!g_ptr_runtime) {
-        LOG_ERROR("TrtEngine::loadFromFile", "Failed to create runtime.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "loadFromFile",
+            "Failed to create TensorRT runtime.");
         return false;
     }
 
     // Deserialize the engine
     g_ptr_engine = g_ptr_runtime->deserializeCudaEngine(vec_data.data(), uint64_length);
     if (!g_ptr_engine) {
-        LOG_ERROR("TrtEngine::loadFromFile", "Failed to deserialize engine.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "loadFromFile",
+            "Failed to deserialize engine from file: " + engineFile);
         return false;
     }
 
@@ -93,7 +95,8 @@ bool TrtEngineMultiTs::loadFromONNX(const std::string& onnxFile) {
     // Create the builder
     nvinfer1::IBuilder* ptr_builder = nvinfer1::createInferBuilder(g_logger);
     if (!ptr_builder) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to create builder.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "loadFromONNX",
+            "Failed to create TensorRT builder.");
         return false;
     }
 
@@ -103,7 +106,7 @@ bool TrtEngineMultiTs::loadFromONNX(const std::string& onnxFile) {
     uint32_t uint32_flag = 1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
     nvinfer1::INetworkDefinition* ptr_network = ptr_builder->createNetworkV2(uint32_flag);
     if (!ptr_network) {
-        LOG_ERROR("TrtEngineV8", "Failed to create network.");
+        LOG_ERROR("TrtEngineMultiTs", "Failed to create network.");
         delete ptr_builder;
         return false;
     }
@@ -113,7 +116,7 @@ bool TrtEngineMultiTs::loadFromONNX(const std::string& onnxFile) {
     // Create the network - Do not explicitly set the batch size
     nvinfer1::INetworkDefinition* ptr_network = ptr_builder->createNetworkV2(0);  // Use 0 for the flag
     if (!ptr_network) {
-        LOG_ERROR("TrtEngineV8", "Failed to create network.");
+        LOG_ERROR("TrtEngineMultiTs", "Failed to create network.");
         delete ptr_builder;
         return false;
     }
@@ -123,7 +126,7 @@ bool TrtEngineMultiTs::loadFromONNX(const std::string& onnxFile) {
     // Create the parser
     auto* ptr_parser = nvonnxparser::createParser(*ptr_network, g_logger);
     if (!ptr_parser) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to create parser.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "loadFromONNX", "Failed to create parser.");
         delete ptr_network;
         delete ptr_builder;
         return false;
@@ -132,7 +135,8 @@ bool TrtEngineMultiTs::loadFromONNX(const std::string& onnxFile) {
     // Parse the ONNX file
     std::ifstream cls_file(onnxFile, std::ios::binary | std::ios::ate);
     if (!cls_file) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to open ONNX file: " + onnxFile);
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "loadFromONNX",
+            "Failed to open ONNX file: " + onnxFile);
         delete ptr_parser;
         delete ptr_network;
         delete ptr_builder;
@@ -144,7 +148,8 @@ bool TrtEngineMultiTs::loadFromONNX(const std::string& onnxFile) {
     cls_file.seekg(0, std::ios::beg);
     std::vector<char> vec_data(uint64_length);
     if (!cls_file.read(vec_data.data(), static_cast<std::streamsize>(uint64_length))) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Error reading ONNX file: " + onnxFile);
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "loadFromONNX",
+            "Error reading ONNX file: " + onnxFile);
         delete ptr_parser;
         delete ptr_network;
         delete ptr_builder;
@@ -153,7 +158,8 @@ bool TrtEngineMultiTs::loadFromONNX(const std::string& onnxFile) {
 
     // Parse the ONNX file
     if (!ptr_parser->parse(vec_data.data(), uint64_length)) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to parse ONNX file: " + onnxFile);
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "loadFromONNX",
+            "Failed to parse ONNX file: " + onnxFile);
         delete ptr_parser;
         delete ptr_network;
         delete ptr_builder;
@@ -163,7 +169,7 @@ bool TrtEngineMultiTs::loadFromONNX(const std::string& onnxFile) {
     // Create the builder configuration
     nvinfer1::IBuilderConfig* ptr_config = ptr_builder->createBuilderConfig();
     if (!ptr_config) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to create builder config.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "loadFromONNX", "Failed to create builder config.");
         delete ptr_parser;
         delete ptr_network;
         delete ptr_builder;
@@ -176,7 +182,7 @@ bool TrtEngineMultiTs::loadFromONNX(const std::string& onnxFile) {
     // Build the serialized engine
     auto ptr_serialized = ptr_builder->buildSerializedNetwork(*ptr_network, *ptr_config);
     if (!ptr_serialized) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to build serialized engine.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "loadFromONNX", "Failed to build serialized engine.");
         delete ptr_parser;
         delete ptr_network;
         delete ptr_builder;
@@ -187,7 +193,7 @@ bool TrtEngineMultiTs::loadFromONNX(const std::string& onnxFile) {
     // Create the runtime
     g_ptr_runtime = nvinfer1::createInferRuntime(g_logger);
     if (!g_ptr_runtime) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to create runtime.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "loadFromONNX", "Failed to create runtime.");
         delete ptr_parser;
         delete ptr_network;
         delete ptr_builder;
@@ -198,7 +204,7 @@ bool TrtEngineMultiTs::loadFromONNX(const std::string& onnxFile) {
     // Deserialize the engine
     g_ptr_engine = g_ptr_runtime->deserializeCudaEngine(ptr_serialized->data(), ptr_serialized->size());
     if (!g_ptr_engine) {
-        LOG_ERROR("TrtEngine::loadFromONNX", "Failed to deserialize engine.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "loadFromONNX", "Failed to deserialize engine.");
         delete ptr_parser;
         delete ptr_network;
         delete ptr_builder;
@@ -228,7 +234,7 @@ bool TrtEngineMultiTs::createContext(
         const std::vector<std::string>& output_names)
 {
     if (!g_ptr_engine) {
-        LOG_ERROR("TrtEngine::createContext", "Engine load failed.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "createContext", "Engine is not loaded.");
         return false;
     }
 
@@ -241,20 +247,21 @@ bool TrtEngineMultiTs::createContext(
     // 创建新 context
     g_ptr_context = g_ptr_engine->createExecutionContext();
     if (!g_ptr_context) {
-        LOG_ERROR("TrtEngine::createContext", "createExecutionContext failed.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "createContext", "Failed to create execution context.");
         return false;
     }
 
     // 设置每个输入的动态形状
     if (input_names.size() != input_dims.size()) {
-        LOG_ERROR("TrtEngine::createContext", "The number of input names and dimensions do not match.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "createContext",
+                        "Input names and dimensions size mismatch.");
         return false;
     }
     for (size_t i = 0; i < input_names.size(); ++i) {
         if (!g_ptr_context->setInputShape(
                 input_names[i].c_str(), input_dims[i])) {
-            LOG_ERROR("TrtEngine::createContext",
-                      "setInputShape 失败: " + input_names[i]);
+            LOG_ERROR_TOPIC("TrtEngineMultiTs", "createContext",
+                            "Failed to set input shape for: " + input_names[i]);
             return false;
         }
     }
@@ -277,12 +284,12 @@ bool TrtEngineMultiTs::infer(
       ) const
 {
     if (!g_ptr_context) {
-        LOG_ERROR("TrtEngine::infer", "ExecutionContext does not exist.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "infer", "ExecutionContext does not exist.");
         return false;
     }
     if (inputs.size()  != m_inputNames.size()  ||
         outputs.size() != m_outputNames.size()) {
-        LOG_ERROR("TrtEngine::infer", "I/O is not matched with context.");
+        LOG_ERROR_TOPIC("TrtEngineMultiTs", "infer", "Input/Output size mismatch with context.");
         return false;
     }
 
@@ -294,7 +301,8 @@ bool TrtEngineMultiTs::infer(
                 m_inputNames[i].c_str(),
                 inputs[i]->ptr()))
         {
-            LOG_ERROR("TrtEngine::infer", "setInputTensorAddress failed: " + m_inputNames[i]);
+            LOG_ERROR_TOPIC("TrtEngineMultiTs", "infer",
+                "setInputTensorAddress failed: " + m_inputNames[i]);
             return false;
         }
     }
@@ -305,12 +313,15 @@ bool TrtEngineMultiTs::infer(
                 m_outputNames[i].c_str(),
                 outPtr))
         {
-            LOG_ERROR("TrtEngine::infer", "setOutputTensorAddress failed: " + m_outputNames[i]);
+            LOG_ERROR_TOPIC("TrtEngineMultiTs", "infer",
+                "setOutputTensorAddress failed: " + m_outputNames[i]);
             return false;
         }
     }
     if (!g_ptr_context->enqueueV3(stream)) {
-        LOG_ERROR("TrtEngine::infer", "enqueueV3 failed.");
+        LOG_DEBUG_TOPIC("TrtEngineMultiTs", "infer",
+            "Failed to enqueueV3 with bindings: " +
+            std::to_string(inputs.size() + outputs.size()));
         return false;
     }
 
@@ -323,7 +334,7 @@ bool TrtEngineMultiTs::infer(
     for (size_t i = 0; i < inputs.size(); ++i) {
         int idx = g_ptr_engine->getBindingIndex(m_inputNames[i].c_str());
         if (idx < 0 || idx >= nb) {
-            LOG_ERROR("TrtEngine::infer", "Invalid input binding: " + m_inputNames[i]);
+            LOG_ERROR_TOPIC("TrtEngineMultiTs", "infer", "Invalid input binding: " + m_inputNames[i]);
             return false;
         }
         bindings[idx] = const_cast<float*>(inputs[i]->ptr());
@@ -332,14 +343,14 @@ bool TrtEngineMultiTs::infer(
     for (size_t i = 0; i < outputs.size(); ++i) {
         int idx = g_ptr_engine->getBindingIndex(m_outputNames[i].c_str());
         if (idx < 0 || idx >= nb) {
-            LOG_ERROR("TrtEngine::infer", "Invalid output binding: " + m_outputNames[i]);
+            LOG_ERROR_TOPIC("TrtEngineMultiTs", "infer", "Invalid output binding: " + m_outputNames[i]);
             return false;
         }
         bindings[idx] = const_cast<float*>(outputs[i]->ptr());
     }
     // 旧版 executeV2，不带 stream
     if (!g_ptr_context->executeV2(bindings.data())) {
-        LOG_ERROR("TrtEngine::infer", "executeV2 failed.");
+        LOG_DEBUG_TOPIC("TrtEngineMultiTs", "infer", "Bindings: " + std::to_string(bindings.size()));
         return false;
     }
 #endif

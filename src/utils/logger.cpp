@@ -31,13 +31,20 @@ std::string Logger::formatLogMessage(LogLevel level, const std::string& module, 
     std::string color = getLogLevelColor(level);
 
     std::ostringstream logStream;
-    logStream << color << "[" << module;
-
+    logStream << color;                         // 设置颜色
+    logStream << "[" << logLevelStr << "] ";    // 输出日志级别
+    logStream << "<" << timestamp << "> ";      // 输出时间戳
+    
+    logStream << "[" << module;                 // 输出模块名
     if (!topic.empty()) {
-        logStream << "/" << topic;
+        logStream << "::" << topic;
     }
+    logStream << "] - " << message;             // 输出消息内容
 
-    logStream << "] " << logLevelStr << " " << timestamp << ": " << message << CONSOLE_COLOR_RESET << std::endl;  // 输出后重置颜色
+    // 重置颜色
+    logStream << CONSOLE_COLOR_RESET << std::endl;
+
+    // 返回格式化后的日志字符串
     return logStream.str();
 }
 
