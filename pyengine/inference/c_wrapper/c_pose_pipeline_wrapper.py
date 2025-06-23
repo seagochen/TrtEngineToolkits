@@ -266,7 +266,7 @@ import os
 
 from pyengine.utils.logger import logger
 from pyengine.inference.c_wrapper.c_pose_pipeline_wrapper import PosePipelineWrapper
-from pyengine.inference.c_wrapper.c_data_struct_wapper import Point, Rect, PoseDetection, InferenceResult
+from pyengine.inference.c_wrapper.c_pose_data_struct import Point, Rect, PoseDetection, InferenceResult
 
 
 if __name__ == "__main__":
