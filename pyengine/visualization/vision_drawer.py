@@ -12,7 +12,7 @@ from pyengine.visualization.schema_loader import SchemaLoader
 class VisionDrawer:
     """
     Refactored drawing utility class for visualizing tracking objects, detections,
-    skeletons, supplementary info, and pose actions with improved control and clarity.
+    skeletons, supplementary info, and pose_extend actions with improved control and clarity.
     """
 
     def __init__(self,
@@ -43,7 +43,7 @@ class VisionDrawer:
         self._last_flash_time = time.time()
         self._flash_state = False # False = primary color, True = secondary color
 
-        # Mapping for pose action descriptions
+        # Mapping for pose_extend action descriptions
         self._action_map = {
             0: "Unknown",
             1: "Bending",
@@ -266,14 +266,14 @@ class VisionDrawer:
                       kpt_radius: int = 3,
                       link_thickness: int = 1) -> np.ndarray:
         """
-        Draws skeleton keypoints and links for a single pose.
+        Draws skeleton keypoints and links for a single pose_extend.
 
         Applies point confidence threshold for drawing keypoints. Links are drawn
         only if both connected keypoints are above the threshold.
 
         Args:
             frame: The image frame to draw on (modified in place).
-            pose: The pose data (YoloPose or YoloPoseSorted).
+            pose: The pose_extend data (YoloPose or YoloPoseSorted).
             show_pts: Whether to draw keypoints.
             show_links: Whether to draw skeleton links (bones).
             show_pts_name: Whether to label keypoints with their names.
@@ -554,13 +554,13 @@ class VisionDrawer:
                          thickness: int = 1,
                          padding: int = 3) -> np.ndarray:
         """
-        Draws the detected pose action text inside the BOTTOM-RIGHT corner
-        of the pose's bounding box, using the provided bbox_color for the background.
+        Draws the detected pose_extend action text inside the BOTTOM-RIGHT corner
+        of the pose_extend's bounding box, using the provided bbox_color for the background.
 
         Args:
             frame: The image frame to draw on (modified in place).
-            pose: The pose data (YoloPose or YoloPoseSorted).
-            action: The action code (int) detected for the pose.
+            pose: The pose_extend data (YoloPose or YoloPoseSorted).
+            action: The action code (int) detected for the pose_extend.
             bbox_color: The color used for the object's bounding box (used as background here).
             text_color: Color for the action text (BGR). Default is white.
             font_scale: Font scale for the action text.

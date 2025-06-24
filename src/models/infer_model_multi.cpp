@@ -22,18 +22,18 @@ InferModelBaseMulti::InferModelBaseMulti(
 
     // 创建 CUDA 流
     if (cudaStreamCreate(&g_stream) != cudaSuccess) {
-        LOG_ERROR("InferModelBase", "Failed to create CUDA stream");
+        LOG_ERROR("InferModelBaseMulti", "Failed to create CUDA stream.");
     }
 
     // 加载模型并创建 Context
     if (!loadEngine(engine_path, g_input_defs, g_output_defs)) {
-        LOG_ERROR("InferModelBase", "Failed to load engine: " + engine_path);
+        LOG_ERROR("InferModelBaseMulti", "Failed to load engine: " + engine_path);
         exit(EXIT_FAILURE);
     }
 
     // 分配输入/输出 Buffer
     if (!allocateBufForTrtEngine(g_input_defs, g_output_defs)) {
-        LOG_ERROR("InferModelBase", "Failed to allocate buffers");
+        LOG_ERROR("InferModelBaseMulti", "Failed to allocate buffers.");
         exit(EXIT_FAILURE);
     }
 }
@@ -58,7 +58,7 @@ bool InferModelBaseMulti::inference() {
 
     // 这次 infer 绑定的就是 map 里原始的 Tensor，结果自然写回到它们
     if (!g_ptr_engine->infer(inputs, outputs, g_stream)) {
-        LOG_ERROR("InferModelBase", "Inference failed");
+        LOG_ERROR("InferModelBaseMulti", "Inference failed");
         return false;
     }
     cudaStreamSynchronize(g_stream);
@@ -71,7 +71,7 @@ bool InferModelBaseMulti::loadEngine(
         const std::vector<TensorDefinition>& output_defs)
 {
     if (!g_ptr_engine->loadFromFile(engine_path)) {
-        LOG_ERROR("loadEngine", "Failed to load engine: " + engine_path);
+        LOG_ERROR_TOPIC("InferModelBaseMulti", "loadEngine", "Failed to load engine: " + engine_path);
         return false;
     }
 
@@ -80,7 +80,7 @@ bool InferModelBaseMulti::loadEngine(
     std::vector<nvinfer1::Dims4> input_dims;
     for (const auto& def : input_defs) {
         if (def.dims.size() != 4) {
-            LOG_ERROR("loadEngine", "Each input must be 4D (batch,C,H,W)");
+            LOG_ERROR_TOPIC("InferModelBaseMulti", "loadEngine", "Each input must be 4D (batch,C,H,W).");
             return false;
         }
         input_names.push_back(def.name);
@@ -92,7 +92,8 @@ bool InferModelBaseMulti::loadEngine(
     }
 
     if (!g_ptr_engine->createContext(input_names, input_dims, output_names)) {
-        LOG_ERROR("loadEngine", "createContext failed");
+        LOG_ERROR_TOPIC("InferModelBaseMulti", "loadEngine", 
+            "Failed to create context for engine: " + engine_path);
         return false;
     }
     return true;
@@ -113,7 +114,8 @@ bool InferModelBaseMulti::allocateBufForTrtEngine(
         }
         return !g_map_trtTensors.empty();
     } catch (const std::exception& e) {
-        LOG_ERROR("allocateBufsForTrtEngine", e.what());
+        LOG_DEBUG_TOPIC("InferModelBaseMulti", "allocateBufsForTrtEngine",
+            "Failed to allocate buffers for TRT engine: " + std::string(e.what()));
         return false;
     }
 }

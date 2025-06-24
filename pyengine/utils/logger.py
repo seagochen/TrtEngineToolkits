@@ -87,9 +87,11 @@ class Logger:
     def warning(self, module, message):
         self.log("WARNING", module, message)
 
-    def error(self, module, message):
+    def error(self, module, message, print_traceback=True):
         # 默认 error 不附带调用栈
         self.log("ERROR", module, message)
+        if print_traceback:
+            traceback.print_exc()
 
     def error_trace(self, module, message):
         """

@@ -78,10 +78,10 @@ def results_to_pose_list(results) -> List[YoloPose]:
             # Append the yolo point object to the list
             keypoints.append(point)
 
-        # Create a yolo pose object to store the results
+        # Create a yolo pose_extend object to store the results
         pose = YoloPose(x1, y1, x2, y2, 0, conf, keypoints)
 
-        # Append the yolo pose object to the list
+        # Append the yolo pose_extend object to the list
         yolo_objects.append(pose)
 
     return yolo_objects
@@ -168,14 +168,14 @@ def numpy_to_pose_list(data: np.ndarray) -> List[YoloPose]:
     """
     Converts a fully flattened numpy array back to a list of YoloPose objects.
     Each row in `data` should contain the main attributes followed by the flattened
-    keypoints for a single detected pose.
+    keypoints for a single detected pose_extend.
     """
     pose_list = []
     for row in data:
         # Extract main attributes
         lx, ly, rx, ry, conf, cls, = row[:6]
 
-        # Extract and reshape keypoints data for each pose
+        # Extract and reshape keypoints data for each pose_extend
         pts_data = row[6:].reshape(-1, 3)  # Reshape to (17, 3)
         pts = [YoloPoint(x=int(pt[0]), y=int(pt[1]), conf=float(pt[2])) for pt in pts_data]
 
@@ -192,7 +192,7 @@ def numpy_to_sorted_pose_list(sorted_data: np.ndarray) -> List[YoloPoseSorted]:
     """
     将排序后的数据转换为 YoloPoseSorted 对象的列表。
 
-    :param sorted_data: 排序后的 numpy 数组，第一列为 tracker ID，其余列为 pose 数据
+    :param sorted_data: 排序后的 numpy 数组，第一列为 tracker ID，其余列为 pose_extend 数据
     :return: List[YoloPoseSorted]
     """
     if sorted_data.ndim != 2:
@@ -201,10 +201,10 @@ def numpy_to_sorted_pose_list(sorted_data: np.ndarray) -> List[YoloPoseSorted]:
     # The first column contains the tracker ID
     tracker_ids = sorted_data[:, 0].astype(int).tolist()
 
-    # The rest of the columns contain the pose data
+    # The rest of the columns contain the pose_extend data
     pose_data = sorted_data[:, 1:]
 
-    # Convert the pose data to a list of YoloPose objects
+    # Convert the pose_extend data to a list of YoloPose objects
     pose_list = numpy_to_pose_list(pose_data)
 
     # Combine tracker_ids with pose_list to create YoloPoseSorted objects

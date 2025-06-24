@@ -11,7 +11,7 @@ class PoseInsight:
     """
     PoseInsight 类整合了人体姿态与面部朝向的分析。
     调用 analyze_poses() 方法，传入包含 YoloPose 或 YoloPoseSorted 对象的列表，
-    返回每个 pose 的 Posture 和 FacialDirection 信息。
+    返回每个 pose_extend 的 Posture 和 FacialDirection 信息。
     """
     ORIENTATION_TEXTS = {
         0: "Front",
@@ -187,7 +187,7 @@ class PoseInsight:
     @staticmethod
     def _analyze_facial_direction(pose: Union[YoloPose, YoloPoseSorted]) -> FacialDirection:
         """
-        根据 pose 中的面部关键点信息分析面部朝向，返回 FacialDirection 对象。
+        根据 pose_extend 中的面部关键点信息分析面部朝向，返回 FacialDirection 对象。
         """
         modulus = PoseInsight._compute_modulus(pose)
         pts = pose.pts
@@ -241,7 +241,7 @@ class PoseInsight:
     @staticmethod
     def analyze_poses(poses: List[Union[YoloPose, YoloPoseSorted]]) -> List[Tuple[Posture, FacialDirection]]:
         """
-        分析传入的 poses 列表，返回每个 pose 的 Posture 和 FacialDirection 信息，结果格式为：
+        分析传入的 poses 列表，返回每个 pose_extend 的 Posture 和 FacialDirection 信息，结果格式为：
             [
                 (Posture(...), FacialDirection(...)),
                 (Posture(...), FacialDirection(...)),

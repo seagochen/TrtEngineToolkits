@@ -126,7 +126,7 @@ void YoloDrawer::drawPoses(cv::Mat& frame, const std::vector<YoloPose>& pose_det
                               const std::map<int, std::string>& class_labels) {
     for (const auto& pose_obj : pose_detections) {
         if (pose_obj.conf < object_conf_threshold) {
-            continue; // Skip if overall pose confidence is too low
+            continue; // Skip if overall pose_extend confidence is too low
         }
 
         // 1. Draw Bounding Box (same as Yolo)

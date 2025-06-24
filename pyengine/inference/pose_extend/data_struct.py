@@ -78,7 +78,7 @@ class YoloPoint(YoloBase):
 
 @dataclass
 class YoloPose(Yolo):
-    """Represents a YOLO pose detection, extending Yolo with keypoints."""
+    """Represents a YOLO pose_extend detection, extending Yolo with keypoints."""
     # Using 'list' as type hint for pts for clarity and allowing mutable default
     # but still using default_factory for safety.
     pts: List[YoloPoint] = field(default_factory=lambda: [YoloPoint() for _ in range(17)])
@@ -180,7 +180,7 @@ class YoloPoseSorted(YoloPose):
         """Converts YoloPoseSorted to a tuple, including oid."""
         # Get the YoloPose (base) tuple representation: (lx, ly, rx, ry, cls, conf, pts_list_of_lists)
         base_pose_tuple = super().to_list()
-        # Combine oid with the base pose tuple
+        # Combine oid with the base pose_extend tuple
         return (self.oid,) + base_pose_tuple
 
     @classmethod
@@ -196,7 +196,7 @@ class YoloPoseSorted(YoloPose):
         oid_val, *pose_data = data
         # Use YoloPose's from_list to handle the rest of the data
         pose_instance = YoloPose.from_list(pose_data)
-        # Create YoloPoseSorted instance by combining oid and the pose instance's dictionary representation
+        # Create YoloPoseSorted instance by combining oid and the pose_extend instance's dictionary representation
         return cls(oid=oid_val, **pose_instance.to_dict())
 
     def to_dict(self) -> dict[str, Any]:
@@ -211,7 +211,7 @@ class YoloPoseSorted(YoloPose):
         oid_val = data.pop('oid', 0) # Safely pop 'oid'
         # Use YoloPose's from_dict to handle the rest of the data
         pose_instance = YoloPose.from_dict(data) # 'data' now only contains YoloPose fields
-        # Create YoloPoseSorted instance by combining oid and the pose instance's dictionary representation
+        # Create YoloPoseSorted instance by combining oid and the pose_extend instance's dictionary representation
         return cls(oid=oid_val, **pose_instance.to_dict())
 
 

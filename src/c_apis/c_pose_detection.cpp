@@ -22,6 +22,8 @@ static std::map<std::string, std::any> g_efficient_pp_params;
 // 全局用的queue，来存储待处理的图片数据
 static std::vector<cv::Mat> g_image_queue;
 
+#define DEBUG 0
+
 // --- Helper for safe parameter retrieval ---
 template<typename T>
 T get_param_safe(const std::map<std::string, std::any>& params, const std::string& key, const T& default_value) {
@@ -113,7 +115,7 @@ bool init_pose_detection_pipeline(const char* yolo_engine_path, const char* effi
         return false;
     }
 
-    LOG_INFO("C_API", "Pose detection pipeline initialized successfully.");
+    LOG_INFO_TOPIC("C_API", "init_pose_detection_pipeline", "Pose detection pipeline initialized successfully.");
     return true;
 }
 
@@ -121,15 +123,19 @@ bool init_pose_detection_pipeline(const char* yolo_engine_path, const char* effi
 void add_image_to_pose_detection_pipeline(const unsigned char* image_data_in_bgr, int width, int height)
 {
     if (!g_pose_model) {
-        LOG_ERROR("C_API", "Pose model not initialized. Call init_pose_detection_pipeline first.");
+        LOG_ERROR_TOPIC("C_API", "add_image_to_pose_detection_pipeline",
+             "Pose model not initialized. Call init_pose_detection_pipeline first.");
         return;
     }
     if (!image_data_in_bgr) {
-        LOG_ERROR("C_API", "Invalid image data pointer in add_image_to_pose_detection_pipeline.");
+        LOG_ERROR_TOPIC("C_API", "add_image_to_pose_detection_pipeline",
+            "Invalid image data pointer in add_image_to_pose_detection_pipeline.");
         return;
     }
     if (width <= 0 || height <= 0) {
-        LOG_ERROR("C_API", "Invalid image dimensions (width=" + std::to_string(width) + ", height=" + std::to_string(height) + ") in add_image_to_pose_detection_pipeline.");
+        LOG_ERROR_TOPIC("C_API", "add_image_to_pose_detection_pipeline",
+            "Invalid image dimensions (width=" + std::to_string(width) + 
+            ", height=" + std::to_string(height) + ") in add_image_to_pose_detection_pipeline.");
         return;
     }
 
@@ -137,26 +143,38 @@ void add_image_to_pose_detection_pipeline(const unsigned char* image_data_in_bgr
     // Make sure to create a deep copy if original_image might go out of scope or change
     cv::Mat original_image(height, width, CV_8UC3, (void*)image_data_in_bgr, cv::Mat::AUTO_STEP);
 
+    // 由于 efficientnet 需要基于 yolo 的结果进行二次分析, 所以最好是将图片统一处理为 640x640 的大小
+    if (width != 640 || height != 640) {
+        cv::Mat resized_image;
+        cv::resize(original_image, resized_image, cv::Size(640, 640));
+        original_image = resized_image; // Update original_image to the resized version
+    }
+
     // Store the image in the global queue
-    g_image_queue.push_back(original_image.clone()); // Clone to ensure the data is owned by the queue
+    g_image_queue.push_back(original_image); // Clone to ensure the data is owned by the queue
+
+#if DEBUG
     LOG_VERBOSE_TOPIC("C_API", "ImageQueue", "Image added to queue. Current queue size: " + std::to_string(g_image_queue.size()));
+#endif
 }
 
 
-bool run_pose_detection_pipeline(C_InferenceResult** out_results, int *out_num_results)
+bool run_pose_detection_pipeline(C_Inference_Result** out_results, int *out_num_results)
 {
     // Initialize output pointers to null/zero in case of early return
     *out_results = nullptr;
     *out_num_results = 0;
 
     if (!g_pose_model || !g_efficient_model) {
-        LOG_ERROR("C_API", "Models not initialized. Call init_pose_detection_pipeline first.");
+        LOG_ERROR_TOPIC("C_API", "run_pose_detection_pipeline",
+            "Models not initialized. Call init_pose_detection_pipeline first.");
         return false;
     }
 
     // If g_image_queue is empty, nothing to process
     if (g_image_queue.empty()) {
-        LOG_WARNING("C_API", "No images in the queue to process.");
+        LOG_WARNING_TOPIC("C_API", "run_pose_detection_pipeline",
+            "No images in the queue to process.");
         // This is not an error, just no data. Return success with 0 results.
         return true;
     }
@@ -169,13 +187,6 @@ bool run_pose_detection_pipeline(C_InferenceResult** out_results, int *out_num_r
         g_pose_pp_params
     );
 
-    if (g_image_queue.empty()) { // Verify images were consumed (optional check)
-        LOG_VERBOSE_TOPIC("C_API", "RunPipeline", "Image queue consumed after pose stage.");
-    } else {
-        LOG_WARNING("C_API", "Image queue not fully consumed by pose stage. Remaining: " + std::to_string(g_image_queue.size()));
-    }
-
-
     // --- Stage 2: Run EfficientNet Classification/Feature Extraction ---
     // `pose_stage_results` is passed by const reference, so it's not modified.
     std::vector<InferenceResult> final_cpp_results = run_efficientnet_stage(
@@ -184,29 +195,33 @@ bool run_pose_detection_pipeline(C_InferenceResult** out_results, int *out_num_r
         g_efficient_pp_params
     );
 
-    // --- Convert C++ results (std::vector<InferenceResult>) to C-compatible output (C_InferenceResult**) ---
+    // --- Convert C++ results (std::vector<InferenceResult>) to C-compatible output (C_Inference_Result**) ---
     *out_num_results = static_cast<int>(final_cpp_results.size());
 
-    // Allocate memory for the array of C_InferenceResult pointers
-    *out_results = (C_InferenceResult*)malloc(sizeof(C_InferenceResult) * (*out_num_results));
-    if (!*out_results) {
-        LOG_ERROR("C_API", "Failed to allocate memory for C_InferenceResult array.");
+    // Allocate memory for the array of C_Inference_Result pointers
+    *out_results = (C_Inference_Result*)malloc(sizeof(C_Inference_Result) * (*out_num_results));
+    if (!*out_results) { // Memory allocation failed
+        LOG_ERROR_TOPIC("C_API", "run_pose_detection_pipeline",
+            "Failed to allocate memory for C_Inference_Result array.");
         *out_num_results = 0;
         return false;
     }
 
-    // Populate each C_InferenceResult
+    // Populate each C_Inference_Result
     for (int i = 0; i < *out_num_results; ++i) {
         const InferenceResult& cpp_result = final_cpp_results[i];
-        C_InferenceResult& c_result = (*out_results)[i];
+        C_Inference_Result& c_result = (*out_results)[i];
 
         c_result.num_detected = cpp_result.num_detected; // Direct copy of detection count
 
         if (cpp_result.num_detected > 0 && !cpp_result.detections.empty()) {
-            // Allocate memory for the detections array within this C_InferenceResult
-            c_result.detections = (C_Extended_Person_Feats*)malloc(sizeof(C_Extended_Person_Feats) * cpp_result.detections.size());
-            if (!c_result.detections) {
-                LOG_ERROR("C_API", "Failed to allocate memory for detections in C_InferenceResult " + std::to_string(i));
+
+            // Allocate memory for the detections array within this C_Inference_Result
+            c_result.detections = (C_Extended_Person_Feats*)malloc(
+                sizeof(C_Extended_Person_Feats) * cpp_result.detections.size());
+            if (!c_result.detections) { // Memory allocation failed for detections
+                LOG_ERROR_TOPIC("C_API", "run_pose_detection_pipeline",
+                    "Failed to allocate memory for detections in C_Inference_Result " + std::to_string(i));
                 // Clean up previously allocated detections and the main array
                 for (int j = 0; j < i; ++j) {
                     free((*out_results)[j].detections);
@@ -216,18 +231,30 @@ bool run_pose_detection_pipeline(C_InferenceResult** out_results, int *out_num_r
                 *out_num_results = 0;
                 return false; // Critical memory allocation failure
             }
+            
             // Copy the actual C_Extended_Person_Feats data
             // Use memcpy for raw bytes copy, or loop for element-wise copy if C++ objects inside (not here)
-            std::memcpy(c_result.detections, cpp_result.detections.data(), sizeof(C_Extended_Person_Feats) * cpp_result.detections.size());
-            LOG_VERBOSE_TOPIC("C_API", "RunPipeline", "Copied " + std::to_string(cpp_result.detections.size()) + " detections for image " + std::to_string(i));
+            std::memcpy(c_result.detections, cpp_result.detections.data(),
+                sizeof(C_Extended_Person_Feats) * cpp_result.detections.size());
+            
+#if DEBUG
+            LOG_VERBOSE_TOPIC("C_API", "run_pose_detection_pipeline", 
+                "Copied " + std::to_string(cpp_result.detections.size()) + 
+                " detections for image " + std::to_string(i));
+#endif
+
         } else {
             // No detections or error, set detections pointer to null
             c_result.detections = nullptr;
-            LOG_VERBOSE_TOPIC("C_API", "RunPipeline", "No detections for image " + std::to_string(i) + ", setting detections to nullptr.");
+            LOG_VERBOSE_TOPIC("C_API", "run_pose_detection_pipeline", 
+                "No detections for image " + std::to_string(i) + ", setting detections to nullptr.");
         }
     }
 
+#if DEBUG
     LOG_INFO("C_API", "Pipeline executed successfully and results converted to C structs.");
+#endif
+
     return true;
 }
 
@@ -235,21 +262,29 @@ void deinit_pose_detection_pipeline() {
     g_pose_model.reset();
     g_efficient_model.reset();
     g_image_queue.clear(); // Clear any remaining images in the queue
-    LOG_INFO("C_API", "Pose detection pipeline models and queue deinitialized.");
+    LOG_INFO_TOPIC("C_API", "deinit_pose_detection_pipeline",
+        "Pose detection pipeline models and queue deinitialized.");
 }
 
-// Corrected memory release function for C_InferenceResult output
-void release_inference_result(C_InferenceResult* result_array, int count) {
+// Corrected memory release function for C_Inference_Result output
+void release_inference_result(C_Inference_Result* result_array, int count) {
     if (result_array) {
         for (int i = 0; i < count; ++i) {
             if (result_array[i].detections) {
-                free(result_array[i].detections); // Free detections array for each C_InferenceResult
+                free(result_array[i].detections); // Free detections array for each C_Inference_Result
                 result_array[i].detections = nullptr;
             }
         }
-        free(result_array); // Free the main C_InferenceResult array
-        LOG_INFO("C_API", "Released " + std::to_string(count) + " C_InferenceResult objects and their nested detections.");
+        free(result_array); // Free the main C_Inference_Result array
+
+#if DEBUG
+        LOG_INFO_TOPIC("C_API", "deinit_pose_detection_pipeline",
+            "Released " + std::to_string(count) + 
+            " C_Inference_Result objects and their nested detections.");
+#endif
+    
     } else {
-        LOG_WARNING("C_API", "Attempted to release a null C_InferenceResult array.");
+        LOG_WARNING_TOPIC("C_API", "deinit_pose_detection_pipeline",
+            "Attempted to release a null C_Inference_Result array.");
     }
 }
