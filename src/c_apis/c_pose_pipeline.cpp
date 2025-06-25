@@ -13,6 +13,10 @@
 #include <chrono>
 #include <memory> // For std::unique_ptr
 
+// OpenMP
+#include <atomic>
+#include <omp.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -27,7 +31,6 @@ struct YoloEfficientContextImpl {
 
 // Forward declaration for the helper function
 static void free_batched_pose_results_single_image(C_ImagePoseResults* single_image_results);
-
 // Helper function to convert std::vector<YoloPose> to C_YoloPose*
 // This function is still responsible for C-style memory allocation, which the caller must free.
 static C_YoloPose* convert_yolo_poses_to_c(const std::vector<YoloPose>& cpp_poses) {
@@ -35,62 +38,71 @@ static C_YoloPose* convert_yolo_poses_to_c(const std::vector<YoloPose>& cpp_pose
         return nullptr;
     }
 
-    // Use a unique_ptr to manage the initial allocation,
-    // so if subsequent allocations fail, the main array is freed.
+    // Allocate the main array. Use a raw pointer as ownership will be released.
     auto* c_poses_raw = static_cast<C_YoloPose*>(malloc(cpp_poses.size() * sizeof(C_YoloPose)));
     if (!c_poses_raw) {
         std::cerr << "Memory allocation failed for C_YoloPose array." << std::endl;
         return nullptr;
     }
-    // Custom deleter for unique_ptr to handle arrays allocated with malloc
-    std::unique_ptr<C_YoloPose, decltype(&free)> c_poses(c_poses_raw, &free);
 
+    // Initialize pointers to nullptr to ensure safe free() calls later
+    // 使用 OpenMP 加速
+    // #pragma omp parallel for
     for (size_t i = 0; i < cpp_poses.size(); ++i) {
-        c_poses.get()[i].lx = cpp_poses[i].lx;
-        c_poses.get()[i].ly = cpp_poses[i].ly;
-        c_poses.get()[i].rx = cpp_poses[i].rx;
-        c_poses.get()[i].ry = cpp_poses[i].ry;
-        c_poses.get()[i].cls = static_cast<float>(cpp_poses[i].cls);
-        c_poses.get()[i].num_pts = static_cast<int>(cpp_poses[i].pts.size());
+        c_poses_raw[i].pts = nullptr;
+        c_poses_raw[i].feats = nullptr;
+    }
+
+    // Loop to populate the C_YoloPose array
+    // 使用 OpenMP 并行化处理
+    for (size_t i = 0; i < cpp_poses.size(); ++i) {
+        c_poses_raw[i].lx = cpp_poses[i].lx;
+        c_poses_raw[i].ly = cpp_poses[i].ly;
+        c_poses_raw[i].rx = cpp_poses[i].rx;
+        c_poses_raw[i].ry = cpp_poses[i].ry;
+        c_poses_raw[i].cls = static_cast<float>(cpp_poses[i].cls);
+        c_poses_raw[i].num_pts = static_cast<int>(cpp_poses[i].pts.size());
 
         // Allocate memory for keypoints
-        if (cpp_poses[i].pts.empty()) {
-            c_poses.get()[i].pts = nullptr;
-        } else {
-            c_poses.get()[i].pts = static_cast<C_KeyPoint*>(malloc(cpp_poses[i].pts.size() * sizeof(C_KeyPoint)));
-            if (!c_poses.get()[i].pts) {
+        if (!cpp_poses[i].pts.empty()) {
+            c_poses_raw[i].pts = static_cast<C_KeyPoint*>(malloc(cpp_poses[i].pts.size() * sizeof(C_KeyPoint)));
+            if (!c_poses_raw[i].pts) {
                 std::cerr << "Memory allocation failed for C_KeyPoint array for pose " << i << "." << std::endl;
-                // unique_ptr will handle c_poses cleanup, but we also need to free any previously allocated pts.
-                for (size_t j = 0; j < i; ++j) {
-                    free(c_poses.get()[j].pts); // Free keypoints for poses already allocated
+                // Cleanup all previously allocated pts and feats, and the main c_poses_raw array
+                // before returning nullptr.
+                for (size_t j = 0; j <= i; ++j) { // Crucial: loop up to current 'i'
+                    free(c_poses_raw[j].pts);
+                    free(c_poses_raw[j].feats);
                 }
-                return nullptr; // c_poses unique_ptr will free c_poses_raw
+                free(c_poses_raw);
+                return nullptr;
             }
+
             for (size_t k = 0; k < cpp_poses[i].pts.size(); ++k) {
-                c_poses.get()[i].pts[k].x = static_cast<float>(cpp_poses[i].pts[k].x);
-                c_poses.get()[i].pts[k].y = static_cast<float>(cpp_poses[i].pts[k].y);
-                c_poses.get()[i].pts[k].conf = 0.0f; // Default to 0 if not available from YoloPose
+                c_poses_raw[i].pts[k].x = static_cast<float>(cpp_poses[i].pts[k].x);
+                c_poses_raw[i].pts[k].y = static_cast<float>(cpp_poses[i].pts[k].y);
+                c_poses_raw[i].pts[k].conf = 0.0f;
             }
         }
 
         // Allocate memory for features if they exist
-        if (cpp_poses[i].feats.empty()) {
-            c_poses.get()[i].feats = nullptr;
-        } else {
-            c_poses.get()[i].feats = static_cast<float*>(malloc(cpp_poses[i].feats.size() * sizeof(float)));
-            if (!c_poses.get()[i].feats) {
+        if (!cpp_poses[i].feats.empty()) {
+            c_poses_raw[i].feats = static_cast<float*>(malloc(cpp_poses[i].feats.size() * sizeof(float)));
+            if (!c_poses_raw[i].feats) {
                 std::cerr << "Memory allocation failed for C_YoloPose feats array for pose " << i << "." << std::endl;
-                // Cleanup previously allocated pts and feats
-                for (size_t j = 0; j <= i; ++j) { // Include current pose's pts if allocated
-                    free(c_poses.get()[j].pts);
-                    free(c_poses.get()[j].feats);
+                // Cleanup all previously allocated pts and feats, and the main c_poses_raw array
+                // before returning nullptr.
+                for (size_t j = 0; j <= i; ++j) { // Crucial: loop up to current 'i'
+                    free(c_poses_raw[j].pts);
+                    free(c_poses_raw[j].feats);
                 }
-                return nullptr; // c_poses unique_ptr will free c_poses_raw
+                free(c_poses_raw);
+                return nullptr;
             }
-            std::memcpy(c_poses.get()[i].feats, cpp_poses[i].feats.data(), cpp_poses[i].feats.size() * sizeof(float));
+            std::memcpy(c_poses_raw[i].feats, cpp_poses[i].feats.data(), cpp_poses[i].feats.size() * sizeof(float));
         }
     }
-    return c_poses.release(); // Release ownership to the caller
+    return c_poses_raw; // Return the raw pointer, ownership transferred to caller
 }
 
 // ------------------------------------------ C API Functions ------------------------------------------
@@ -186,6 +198,8 @@ preprocess_images_for_yolo(const unsigned char* const* input_images_data,
     std::map<int, int> original_to_processed_idx_map;
     int valid_count = 0;
 
+    // 使用 OpenMP 并行化处理图像预处理
+    // #pragma omp parallel for
     for (int i = 0; i < num_images; ++i) {
         if (!input_images_data[i] || widths[i] <= 0 || heights[i] <= 0 || channels[i] <= 0) {
             std::cerr << "Invalid image data provided for image index " << i << ". Skipping." << std::endl;
@@ -228,11 +242,15 @@ perform_yolo_inference(YoloEfficientContextImpl* context,
 
     size_t yolo_batch_size = std::min(static_cast<size_t>(std::any_cast<int>(context->yolo_params["maximum_batch"])), yolo_input_images.size());
 
+    // 使用 YoloPose 模型的 preprocess 方法处理每个图像
     for (int i = 0; i < yolo_batch_size; ++i) {
         context->pose_model->preprocess(yolo_input_images[i], i);
     }
+
+    // 执行 YoloPose 模型的推理
     context->pose_model->inference();
 
+    // 使用 YoloPose 模型的 postprocess 方法获取每个图像的检测结果
     std::map<int, std::vector<YoloPose>> cpp_batched_pose_detections;
     for (int i = 0; i < yolo_batch_size; ++i) {
         std::any single_image_pose_results_any;
@@ -255,14 +273,12 @@ crop_images_for_efficientnet(const std::map<int, std::vector<YoloPose>>& yolo_de
                              const std::map<int, int>& processed_to_original_idx_map) {
 
     std::vector<FlattenedPoseData> all_flattened_poses_with_crops;
-    constexpr float scale_factor = 1.2f;
 
     for (auto const& [processed_img_idx, poses_in_image] : yolo_detections) {
         if (!processed_to_original_idx_map.contains(processed_img_idx)) {
             std::cerr << "Error: Processed image index " << processed_img_idx << " not found in original_to_processed_idx_map." << std::endl;
             continue;
         }
-        int original_img_idx_from_input = processed_to_original_idx_map.at(processed_img_idx);
 
         // Ensure processed_img_idx is valid for original_images
         if (processed_img_idx >= original_images.size()) {
@@ -274,6 +290,7 @@ crop_images_for_efficientnet(const std::map<int, std::vector<YoloPose>>& yolo_de
         if (source_image.empty()) continue; // Skip if source image invalid
 
         for (size_t i = 0; i < poses_in_image.size(); ++i) {
+            constexpr float scale_factor = 1.2f;
             const auto& pose = poses_in_image[i];
             if (pose.pts.empty()) continue; // Skip if no keypoints
 
@@ -291,7 +308,10 @@ crop_images_for_efficientnet(const std::map<int, std::vector<YoloPose>>& yolo_de
 
             if (crop_width > 0 && crop_height > 0) {
                 cv::Mat cropped_img = source_image(cv::Rect(crop_x, crop_y, crop_width, crop_height));
-                all_flattened_poses_with_crops.push_back({original_img_idx_from_input, i, pose, cropped_img});
+
+                all_flattened_poses_with_crops.push_back({
+                    processed_to_original_idx_map.at(processed_img_idx),
+                    i, pose, cropped_img});
             }
         }
     }
@@ -320,11 +340,15 @@ perform_efficientnet_inference(YoloEfficientContextImpl* context,
             continue;
         }
 
+        // 使用 EfficientNet 模型的 preprocess 方法处理每个图像
         for (int i = 0; i < current_efficient_batch_images.size(); ++i) {
             context->efficient_model->preprocess(current_efficient_batch_images[i], i);
         }
+
+        // 执行 EfficientNet 模型的推理
         context->efficient_model->inference();
 
+        // 使用 EfficientNet 模型的 postprocess 方法获取每个图像的分类结果
         std::vector<std::vector<float>> cls_results_sub_batch;
         for(int i = 0; i < current_efficient_batch_images.size(); ++i) {
             std::any single_efficient_result_any;
@@ -380,7 +404,6 @@ merge_efficientnet_results(int num_original_images,
     return final_cpp_detections_map;
 }
 
-
 C_BatchedPoseResults c_process_batched_images(
     YoloEfficientContext* context_handle,
     const unsigned char* const* input_images_data,
@@ -410,7 +433,6 @@ C_BatchedPoseResults c_process_batched_images(
         return c_results;
     }
 
-    // Create a map from processed index back to original index
     std::map<int, int> processed_to_original_idx_map;
     for (auto const& [orig_idx, proc_idx] : original_to_processed_idx_map) {
         processed_to_original_idx_map[proc_idx] = orig_idx;
@@ -418,7 +440,7 @@ C_BatchedPoseResults c_process_batched_images(
 
     // 2. Perform YoloPose inference
     std::map<int, std::vector<YoloPose>> cpp_batched_pose_detections =
-        perform_yolo_inference(context, valid_original_images_for_cropping, original_to_processed_idx_map);
+        perform_yolo_inference(context, valid_original_images_for_cropping, processed_to_original_idx_map);
 
     // 3. Flatten detections and crop images for EfficientNet
     std::vector<FlattenedPoseData> all_flattened_poses_with_crops =
@@ -442,28 +464,59 @@ C_BatchedPoseResults c_process_batched_images(
         return c_results;
     }
 
+    // Initialize all detections pointers to nullptr to ensure safe cleanup if an error occurs
     for (int i = 0; i < num_images; ++i) {
+        c_results.results[i].detections = nullptr;
+        c_results.results[i].num_detections = 0; // Initialize count too
+    }
+
+    // Flag to indicate if any conversion failed in parallel region
+    std::atomic<bool> conversion_failed = false;
+
+    // #pragma omp parallel for
+    for (int i = 0; i < num_images; ++i) {
+        // If an error already occurred for another image, this thread can stop early if desired,
+        // but it's simpler to just let it finish its iteration and check the flag afterwards.
+        if (conversion_failed.load(std::memory_order_relaxed)) {
+             continue; // Skip further processing for this image if a failure has been signaled
+        }
+
         c_results.results[i].image_idx = i;
         if (final_cpp_detections_map.count(i)) {
-            const auto& cpp_poses = final_cpp_detections_map[i];
+            const auto& cpp_poses = final_cpp_detections_map.at(i);
             c_results.results[i].num_detections = static_cast<int>(cpp_poses.size());
-            c_results.results[i].detections = convert_yolo_poses_to_c(cpp_poses);
-            if (c_results.results[i].detections == nullptr && !cpp_poses.empty()) {
-                // If conversion of C_YoloPose* failed, clean up previous C_ImagePoseResults
-                for (int j = 0; j < i; ++j) {
-                    free_batched_pose_results_single_image(&c_results.results[j]);
-                }
-                free(c_results.results);
-                c_results.results = nullptr;
-                c_results.num_images = 0;
-                std::cerr << "Partial conversion to C_YoloPose failed, returning empty results." << std::endl;
-                return c_results;
+
+            // Perform conversion for current image
+            C_YoloPose* current_image_detections = convert_yolo_poses_to_c(cpp_poses);
+
+            if (current_image_detections == nullptr && !cpp_poses.empty()) {
+                // Conversion failed for this specific image.
+                // Set the global error flag.
+                conversion_failed.store(true, std::memory_order_relaxed);
+                // No need to free other successful allocations within this parallel loop.
+                // The consolidated cleanup after the loop will handle everything.
+                std::cerr << "Partial conversion to C_YoloPose failed for image " << i << " within parallel loop." << std::endl;
             }
+            c_results.results[i].detections = current_image_detections; // Store the result (can be nullptr)
         } else {
             c_results.results[i].num_detections = 0;
             c_results.results[i].detections = nullptr;
         }
     }
+
+    // AFTER the parallel loop, check the error flag and perform consolidated cleanup if needed
+    if (conversion_failed.load(std::memory_order_relaxed)) {
+        std::cerr << "Overall conversion to C_YoloPose failed for one or more images. Cleaning up all allocated resources." << std::endl;
+        // Iterate through all num_images results and free anything that was successfully allocated
+        for (int i = 0; i < num_images; ++i) {
+            free_batched_pose_results_single_image(&c_results.results[i]); // This handles nullptr safely
+        }
+        free(c_results.results);
+        c_results.results = nullptr;
+        c_results.num_images = 0;
+        return c_results; // Return empty results to signal failure
+    }
+
     return c_results;
 }
 

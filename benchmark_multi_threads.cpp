@@ -243,6 +243,6 @@ int main() {
     c_register_models();
 
     // Call the new C API benchmark function
-    benchmark_yolo_pose_efficient_api(10, true); // Reduced iterations for quicker testing (e.g., for 8 images in 10 iterations)
+    benchmark_yolo_pose_efficient_api(1000, true); // Reduced iterations for quicker testing (e.g., for 8 images in 10 iterations)
     return 0;
 }
