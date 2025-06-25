@@ -66,6 +66,8 @@ endif()
 # ------------------ 查找 OpenCV ------------------
 find_package(OpenCV REQUIRED)
 
+# ------------------ 查找多线程库 ------------------
+find_package(Threads REQUIRED)
 
 # ------------------ OpenMP 支持 ------------------
 find_package(OpenMP QUIET COMPONENTS CXX) # 尝试查找 C++ 的 OpenMP 支持
@@ -127,6 +129,7 @@ target_link_libraries(jetson_shared PRIVATE
         ${TENSORRT_LIBS}
         ${OpenCV_LIBRARIES}
         ${OpenMP_LIBS} # 添加 OpenMP 链接库
+        Threads::Threads # Link Threads for std::thread support
 )
 
 # 设置编译选项
@@ -162,6 +165,7 @@ target_link_libraries(jetson_static PRIVATE
         ${TENSORRT_LIBS}
         ${OpenCV_LIBRARIES}
         ${OpenMP_LIBS} # 添加 OpenMP 链接库
+        Threads::Threads # Link Threads for std::thread support
 )
 
 # 设置编译选项
@@ -170,26 +174,21 @@ target_compile_options(jetson_static PRIVATE
 )
 
 # ====================================================================
-#                trt_engine_pipeline_test (可执行文件)
+#                 benchmark_multi_threads (可执行文件)
 # ====================================================================
-# 测试专用源文件
 set(TEST_SPECIAL_SOURCES
-        "${PROJECT_SOURCE_DIR}/trt_engine_pipeline_test.cpp"
+        "benchmark_multi_threads.cpp"
 )
 
-# 合并公共源和测试专用源
 list(APPEND TEST_SPECIAL_SOURCES ${COMMON_SOURCE_FILES})
 
-# 生成可执行文件
-add_executable(trt_engine_pipeline_test ${TEST_SPECIAL_SOURCES})
+add_executable(benchmark_multi_threads ${TEST_SPECIAL_SOURCES})
 
-# 设置目标属性
-set_target_properties(trt_engine_pipeline_test PROPERTIES
-        OUTPUT_NAME "trt_engine_pipeline_test"
+set_target_properties(benchmark_multi_threads PROPERTIES
+        OUTPUT_NAME "benchmark_multi_threads"
 )
 
-# 添加包含目录
-target_include_directories(trt_engine_pipeline_test PRIVATE
+target_include_directories(benchmark_multi_threads PRIVATE
         ${CUDA_INCLUDE_DIRS}
         ${SIMPLE_CUDA_TOOLKITS_INC}
         ${TENSORRT_INCLUDE_DIRS}
@@ -197,18 +196,17 @@ target_include_directories(trt_engine_pipeline_test PRIVATE
         "${PROJECT_SOURCE_DIR}/include"
 )
 
-# 链接所需的库
-target_link_libraries(trt_engine_pipeline_test PRIVATE
+target_link_libraries(benchmark_multi_threads PRIVATE
         ${CUDA_LIBRARIES}
         "${SIMPLE_CUDA_TOOLKITS_LIB}/libsimplecuda.a"
         ${TENSORRT_LIBS}
         ${OpenCV_LIBRARIES}
-        ${OpenMP_LIBS} # 添加 OpenMP 链接库
+        ${OpenMP_LIBS} # Add OpenMP link libraries
+        Threads::Threads # Link Threads for std::thread support
 )
 
-# 设置编译选项
-target_compile_options(trt_engine_pipeline_test PRIVATE
-        ${OpenMP_FLAGS} # 添加 OpenMP 编译选项
+target_compile_options(benchmark_multi_threads PRIVATE
+        ${OpenMP_FLAGS} # Add OpenMP compile options
 )
 
 # ====================================================================
@@ -216,22 +214,22 @@ target_compile_options(trt_engine_pipeline_test PRIVATE
 # ====================================================================
 # 测试专用源文件
 set(TEST_SPECIAL_SOURCES
-        "${PROJECT_SOURCE_DIR}/trt_engine_performance_test.cpp"
+        "${PROJECT_SOURCE_DIR}/benchmark_performance.cpp"
 )
 
 # 合并公共源和测试专用源
 list(APPEND TEST_SPECIAL_SOURCES ${COMMON_SOURCE_FILES})
 
 # 生成可执行文件
-add_executable(trt_engine_performance_test ${TEST_SPECIAL_SOURCES})
+add_executable(benchmark_performance ${TEST_SPECIAL_SOURCES})
 
 # 设置目标属性
-set_target_properties(trt_engine_performance_test PROPERTIES
-        OUTPUT_NAME "trt_engine_performance_test"
+set_target_properties(benchmark_performance PROPERTIES
+        OUTPUT_NAME "benchmark_performance"
 )
 
 # 添加包含目录
-target_include_directories(trt_engine_performance_test PRIVATE
+target_include_directories(benchmark_performance PRIVATE
         ${CUDA_INCLUDE_DIRS}
         ${SIMPLE_CUDA_TOOLKITS_INC}
         ${TENSORRT_INCLUDE_DIRS}
@@ -240,7 +238,7 @@ target_include_directories(trt_engine_performance_test PRIVATE
 )
 
 # 链接所需的库
-target_link_libraries(trt_engine_performance_test PRIVATE
+target_link_libraries(benchmark_performance PRIVATE
         ${CUDA_LIBRARIES}
         "${SIMPLE_CUDA_TOOLKITS_LIB}/libsimplecuda.a"
         ${TENSORRT_LIBS}
@@ -249,10 +247,9 @@ target_link_libraries(trt_engine_performance_test PRIVATE
 )
 
 # 设置编译选项
-target_compile_options(trt_engine_performance_test PRIVATE
+target_compile_options(benchmark_performance PRIVATE
         ${OpenMP_FLAGS} # 添加 OpenMP 编译选项
 )
-
 
 # ------------------- 安装规则 -------------------
 

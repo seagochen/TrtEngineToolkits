@@ -45,7 +45,6 @@ private:
     }
 };
 
-
 /**
  * @brief 在程序启动时注册模型
  */
@@ -98,6 +97,6 @@ inline void registerModels()
         int maximum_batch = GET_PARAM(params, "maximum_batch", int);
         return std::make_unique<EfficientFeats>(engine_path, maximum_batch);
     });
-}
+};
 
 #endif // MODEL_INIT_HELPER_HPP
