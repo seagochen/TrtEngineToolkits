@@ -359,9 +359,6 @@ void benchmark_efficientnet_throughput() {
 
         std::map<std::string, std::any> params;
         params["maximum_batch"] = current_batch_size;
-        // EfficientNet的推理特征和样本数量，确保params包含必要项
-        params["infer_features"] = 1000; // EfficientNet输出特征通常是类别数，例如ImageNet有1000类
-        params["infer_samples"] = 1;     // 通常对每个图片一个输出样本
 
         std::unique_ptr<InferModelBaseMulti> efficient_model = ModelFactory::createModel(
             "EfficientNet", engine_path, params
@@ -625,9 +622,6 @@ int main() {
     // EfficientNet
     std::map<std::string, std::any> efficientnet_params_leak_test;
     efficientnet_params_leak_test["maximum_batch"] = 1; // Fixed for this test
-    // 为EfficientNet模型添加预期的infer_features和infer_samples
-    efficientnet_params_leak_test["infer_features"] = 1000;
-    efficientnet_params_leak_test["infer_samples"] = 1;
     benchmark_memory_leak_stress("EfficientNet",
         "/opt/models/efficientnet_b0_feat_logits.engine",
         efficientnet_params_leak_test, "/opt/images/apples.png", false);
