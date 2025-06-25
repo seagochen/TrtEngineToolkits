@@ -67,6 +67,7 @@ struct YoloPoint {
 struct YoloPose final : Yolo {
     // lx, ly, rx, ry, conf, and cls are inherited from Yolo
     std::vector<YoloPoint> pts;
+    std::vector<float> feats; // Additional features, ReId
 };
 
 // YoloPose publicly inherits from Yolo

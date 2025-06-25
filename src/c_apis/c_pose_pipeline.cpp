@@ -47,10 +47,12 @@ extern "C" {
             c_poses[i].cls = static_cast<float>(cpp_poses[i].cls);
             c_poses[i].num_pts = static_cast<int>(cpp_poses[i].pts.size()); // Use size_t to int conversion
 
+            // Allocate memory for keypoints
             if (cpp_poses[i].pts.empty()) {
                 c_poses[i].pts = nullptr;
             } else {
-                c_poses[i].pts = (C_KeyPoint*)malloc(cpp_poses[i].pts.size() * sizeof(C_KeyPoint));
+                // c_poses[i].pts = (C_KeyPoint*)malloc(cpp_poses[i].pts.size() * sizeof(C_KeyPoint));
+                c_poses[i].pts = static_cast<C_KeyPoint*>(malloc(cpp_poses[i].pts.size() * sizeof(C_KeyPoint)));
                 if (!c_poses[i].pts) {
                     std::cerr << "Memory allocation failed for C_KeyPoint array." << std::endl;
                     // Clean up already allocated keypoint arrays for this C_YoloPose array
@@ -69,6 +71,23 @@ extern "C" {
                     // Original error: 'const value_type' {aka 'const struct YoloPoint'} has no member named 'prob'
                     // c_poses[i].pts[k].prob = cpp_poses[i].pts[k].prob;
                 }
+            }
+
+            // Allocate memory for features if they exist
+            if (cpp_poses[i].feats.empty()) {
+                c_poses[i].feats = nullptr;
+            } else {
+                c_poses[i].feats = static_cast<float*>(malloc(cpp_poses[i].feats.size() * sizeof(float)));
+                if (!c_poses[i].feats) {
+                    std::cerr << "Memory allocation failed for C_YoloPose feats array." << std::endl;
+                    // Clean up already allocated feats for this C_YoloPose array
+                    for(size_t j = 0; j < i; ++j) {
+                        free(c_poses[j].feats); // Free feats for poses already allocated
+                    }
+                    free(c_poses); // Free the main poses array
+                    return nullptr;
+                }
+                std::ranges::copy(cpp_poses[i].feats, c_poses[i].feats);
             }
         }
         return c_poses;
@@ -371,13 +390,25 @@ extern "C" {
 
         size_t result_idx_counter = 0;
         for (const auto& flat_pose_with_crop : all_flattened_poses_with_crops) {
-            if (result_idx_counter < efficient_net_all_results.size() && !efficient_net_all_results[result_idx_counter].empty()) {
+
+            // 获取当前的 EfficientNet 结果
+            if (result_idx_counter < efficient_net_all_results.size()
+                && efficient_net_all_results[result_idx_counter].size() >= 257) {
                 YoloPose updated_pose = flat_pose_with_crop.pose; // Start with the original pose
+
+                // 1) 更新类别 cls（索引 0）
                 updated_pose.cls = static_cast<int>(efficient_net_all_results[result_idx_counter][0]);
 
-                // Add or update the pose in the final map, ensuring original image index is correct
-                // Check if the original image index exists in the map
-                if (final_cpp_detections_map.count(flat_pose_with_crop.original_image_idx_in_batch)) {
+                // 2) 写入 EfficientNet 的 256 维特征向量（索引 1~256）
+                updated_pose.feats.clear();
+                updated_pose.feats.insert(
+                    updated_pose.feats.end(),
+                    efficient_net_all_results[result_idx_counter].begin() + 1,
+                    efficient_net_all_results[result_idx_counter].end()
+                );
+
+                // 3) 然后按原逻辑把 updated_pose 放回 final_cpp_detections_ma
+                if (final_cpp_detections_map.contains(flat_pose_with_crop.original_image_idx_in_batch)) {
                     // Ensure the vector for this image index is large enough
                     if (flat_pose_with_crop.original_pose_idx_in_image < final_cpp_detections_map[flat_pose_with_crop.original_image_idx_in_batch].size()) {
                         final_cpp_detections_map[flat_pose_with_crop.original_image_idx_in_batch][flat_pose_with_crop.original_pose_idx_in_image] = updated_pose;
@@ -396,7 +427,7 @@ extern "C" {
             } else {
                 // If EfficientNet didn't produce a result for this pose (e.g., crop failed, or result_idx_counter out of bounds)
                 // Still add the original YoloPose, but without updated classification
-                if (final_cpp_detections_map.count(flat_pose_with_crop.original_image_idx_in_batch)) {
+                if (final_cpp_detections_map.contains(flat_pose_with_crop.original_image_idx_in_batch)) {
                     if (flat_pose_with_crop.original_pose_idx_in_image < final_cpp_detections_map[flat_pose_with_crop.original_image_idx_in_batch].size()) {
                         // Pose already exists (copied from YoloPose detections) and was not updated with classification, no action needed.
                     } else {
@@ -441,7 +472,7 @@ extern "C" {
 
         // --- Convert C++ results to C-compatible structure ---
         c_results.num_images = num_images; // Report results for all input images, even if empty
-        c_results.results = (C_ImagePoseResults*)calloc(num_images, sizeof(C_ImagePoseResults)); // Use calloc to zero-initialize
+        c_results.results = static_cast<C_ImagePoseResults*>(malloc(num_images * sizeof(C_ImagePoseResults)));
         if (!c_results.results) {
             std::cerr << "Memory allocation failed for C_ImagePoseResults array." << std::endl;
             c_results.num_images = 0;
@@ -488,20 +519,36 @@ extern "C" {
         }
     }
 
-    void c_free_batched_pose_results(C_BatchedPoseResults* results)
-    {
-        if (results) {
-            if (results->results) {
-                for (int i = 0; i < results->num_images; ++i) {
-                    free_batched_pose_results_single_image(&results->results[i]);
-                }
-                free(results->results);
-                results->results = nullptr;
-            }
-            results->num_images = 0;
-        }
-    }
+    void c_free_batched_pose_results(C_BatchedPoseResults* results) {
+        if (!results || !results->results) return;
 
+        for (int i = 0; i < results->num_images; ++i) {
+            C_ImagePoseResults* img = &results->results[i];
+            if (!img->detections) continue;
+
+            // 对每个检测，先释放 pts，再释放 feats
+            for (int j = 0; j < img->num_detections; ++j) {
+                C_YoloPose* det = &img->detections[j];
+                if (det->pts) {
+                    free(det->pts);
+                    det->pts = nullptr;
+                }
+                if (det->feats) {
+                    free(det->feats);
+                    det->feats = nullptr;
+                }
+            }
+            // 再释放这一张图的 C_YoloPose 数组
+            free(img->detections);
+            img->detections = nullptr;
+            img->num_detections = 0;
+        }
+
+        // 最后释放图片结果数组
+        free(results->results);
+        results->results = nullptr;
+        results->num_images = 0;
+    }
 
     void c_destroy_pose_pipeline(YoloEfficientContext* context_handle) {
         if (context_handle) {

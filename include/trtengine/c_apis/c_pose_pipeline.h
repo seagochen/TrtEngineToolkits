@@ -27,6 +27,8 @@ extern "C" {
         int num_pts;        // Number of keypoints in 'pts' array
         C_KeyPoint* pts;    // Pointer to an array of C_KeyPoint structures.
                             // This memory must be freed by the API consumer.
+        float* feats;       // Pointer to an array of additional features (e.g., pose embeddings).
+                            // This memory must be freed by the API consumer.
     } C_YoloPose;
 
     // C-compatible structure for the results of pose detections for one image.

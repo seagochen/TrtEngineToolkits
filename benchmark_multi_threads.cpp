@@ -165,6 +165,24 @@ void benchmark_yolo_pose_efficient_api(int num_iterations = 100, bool display_re
                             p.pts.push_back(kp);
                         }
                         cpp_poses_for_display.push_back(p);
+
+
+                        // ———————— 这里是新打印逻辑 ————————
+                        // 只打印第 0 个检测，并且 feats 指针非空
+                        // auto* det = &c_results.results[i].detections[j];
+                        //
+                        // if (j == 0 && det->feats) {
+                        //     std::cout << std::fixed << std::setprecision(2);
+                        //     std::cout << "Image " << c_results.results[i].image_idx
+                        //               << ", Detection " << j
+                        //               << ", Features: ";
+                        //     for (int f = 0; f < 256; ++f) {
+                        //         std::cout << det->feats[f] << " ";
+                        //     }
+                        //     std::cout << std::endl;
+                        // }
+                        // ————————————————————————————————
+
                     }
                     final_display_detections_map[c_results.results[i].image_idx] = cpp_poses_for_display;
                 }
