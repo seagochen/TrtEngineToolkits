@@ -4,7 +4,7 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from pyengine.inference.c_wrapper.c_pose_data_struct import PoseDetection, Rect
-from pyengine.inference.tracker.tracker import UnifiedTrack
+from pyengine.algorithms.tracker.tracker import UnifiedTrack
 
 
 class SORTTracker:

@@ -6,7 +6,7 @@ from scipy.optimize import linear_sum_assignment
 # 从你的文件导入数据结构
 from pyengine.inference.c_wrapper.c_pose_data_struct import Rect, PoseDetection
 from pyengine.inference.c_wrapper.c_pose_pipeline_wrapper import PosePipelineWrapper
-from pyengine.inference.tracker.tracker import UnifiedTrack
+from pyengine.algorithms.tracker.tracker import UnifiedTrack
 
 
 class DeepSORTTracker:

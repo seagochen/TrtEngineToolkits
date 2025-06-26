@@ -23,12 +23,11 @@ extern "C" {
     // C-compatible structure for a single YoloPose detection.
     typedef struct {
         int lx, ly, rx, ry; // Bounding box coordinates
-        float cls;          // Classification score (updated by EfficientNet)
+        int cls;            // Class index (e.g., person)
         int num_pts;        // Number of keypoints in 'pts' array
+        float conf;         // Overall confidence score for the pose detection
         C_KeyPoint* pts;    // Pointer to an array of C_KeyPoint structures.
-                            // This memory must be freed by the API consumer.
-        float* feats;       // Pointer to an array of additional features (e.g., pose embeddings).
-                            // This memory must be freed by the API consumer.
+        float* feats;       // Pointer to an array of additional features (e.g., pose embeddings), size is 256
     } C_YoloPose;
 
     // C-compatible structure for the results of pose detections for one image.
