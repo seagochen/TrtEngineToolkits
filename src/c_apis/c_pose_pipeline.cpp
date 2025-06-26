@@ -13,9 +13,9 @@
 #include <chrono>
 #include <memory> // For std::unique_ptr
 
-// OpenMP
+// 原子操作和 OpenMP 头文件
 #include <atomic>
-#include <omp.h>
+// #include <omp.h> // 目前暂时关闭这部分的优化
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,6 +62,7 @@ static C_YoloPose* convert_yolo_poses_to_c(const std::vector<YoloPose>& cpp_pose
         c_poses_raw[i].ry = cpp_poses[i].ry;
         c_poses_raw[i].cls = static_cast<float>(cpp_poses[i].cls);
         c_poses_raw[i].num_pts = static_cast<int>(cpp_poses[i].pts.size());
+        c_poses_raw[i].conf = cpp_poses[i].conf;
 
         // Allocate memory for keypoints
         if (!cpp_poses[i].pts.empty()) {
@@ -81,7 +82,7 @@ static C_YoloPose* convert_yolo_poses_to_c(const std::vector<YoloPose>& cpp_pose
             for (size_t k = 0; k < cpp_poses[i].pts.size(); ++k) {
                 c_poses_raw[i].pts[k].x = static_cast<float>(cpp_poses[i].pts[k].x);
                 c_poses_raw[i].pts[k].y = static_cast<float>(cpp_poses[i].pts[k].y);
-                c_poses_raw[i].pts[k].conf = 0.0f;
+                c_poses_raw[i].pts[k].conf = cpp_poses[i].pts[k].conf;
             }
         }
 
@@ -275,7 +276,9 @@ crop_images_for_efficientnet(const std::map<int, std::vector<YoloPose>>& yolo_de
     std::vector<FlattenedPoseData> all_flattened_poses_with_crops;
 
     for (auto const& [processed_img_idx, poses_in_image] : yolo_detections) {
-        if (!processed_to_original_idx_map.contains(processed_img_idx)) {
+
+        // Ensure processed_img_idx is valid for processed_to_original_idx_map
+        if (processed_to_original_idx_map.find(processed_img_idx) == processed_to_original_idx_map.end()) {
             std::cerr << "Error: Processed image index " << processed_img_idx << " not found in original_to_processed_idx_map." << std::endl;
             continue;
         }
@@ -285,6 +288,8 @@ crop_images_for_efficientnet(const std::map<int, std::vector<YoloPose>>& yolo_de
             std::cerr << "Error: Processed image index " << processed_img_idx << " out of bounds for original_images." << std::endl;
             continue;
         }
+
+        // Get the original image using the mapping
         const cv::Mat& source_image = original_images[processed_img_idx];
 
         if (source_image.empty()) continue; // Skip if source image invalid

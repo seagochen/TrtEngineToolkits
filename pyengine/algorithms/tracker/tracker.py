@@ -1,10 +1,11 @@
+# tracker.py
 from collections import deque
 from typing import Optional
 
 import numpy as np
 from filterpy.kalman import KalmanFilter
 
-from pyengine.inference.c_wrapper.c_pose_data_struct import PoseDetection, Rect
+from pyengine.inference.unified_structs.inference_results import ObjectDetection, Rect
 
 
 class UnifiedTrack:
@@ -14,11 +15,11 @@ class UnifiedTrack:
     """
     _next_id = 0  # 静态变量，用于生成唯一的轨迹ID
 
-    def __init__(self, detection: PoseDetection, use_reid: bool = True):
+    def __init__(self, detection: ObjectDetection, use_reid: bool = True):
         """
         初始化一个新的轨迹。
         Args:
-            detection (PoseDetection): 用于初始化轨迹的第一个检测结果。
+            detection (ObjectDetection): 用于初始化轨迹的第一个检测结果。
             use_reid (bool): 如果为 True，将存储和更新 Re-ID 特征。
                              用于 DeepSORT 时设为 True，用于 SORT 时设为 False。
         """
@@ -36,7 +37,7 @@ class UnifiedTrack:
         self.kf = KalmanFilter(dim_x=8, dim_z=4)  # 8D 状态，4D 测量 (x, y, a, h)
 
         # 状态转移矩阵 (F): 假设恒定速度模型
-        dt = 1.0 # 假设帧间隔为1
+        dt = 1.0  # 假设帧间隔为1
         self.kf.F = np.array([
             [1, 0, 0, 0, dt, 0, 0, 0],
             [0, 1, 0, 0, 0, dt, 0, 0],
@@ -67,21 +68,23 @@ class UnifiedTrack:
         self.kf.P *= 1000.
 
         # 从第一个检测结果初始化 Kalman 滤波器的状态 x
-        box = detection.box
+        # 你的 ObjectDetection 现在包含一个 Rect 对象
+        box = detection.rect # 获取 Rect 对象
         center_x = (box.x1 + box.x2) / 2
         center_y = (box.y1 + box.y2) / 2
         width = box.x2 - box.x1
         height = box.y2 - box.y1
-        aspect_ratio = width / height if height > 0 else 0 # 避免除以零
+        aspect_ratio = width / height if height > 0 else 0  # 避免除以零
 
         # 初始速度设为0
         self.kf.x = np.array([center_x, center_y, aspect_ratio, height, 0, 0, 0, 0]).reshape((8, 1))
 
         if self.use_reid:
             # 存储最近的 Re-ID 特征，用于 DeepSORT
+            # detection.features 现在是一个 List[float]，需要转换为 np.array
             self.features = deque([np.array(detection.features)], maxlen=100) if detection.features else deque(maxlen=100)
         else:
-            self.features = None # SORT模式下不存储特征
+            self.features = None  # SORT模式下不存储特征
 
         self.time_since_update = 0  # 距离上次成功更新的帧数
         self.hits = 1  # 轨迹被检测命中的总次数
@@ -93,13 +96,14 @@ class UnifiedTrack:
         self.age += 1
         self.time_since_update += 1
 
-    def update(self, detection: PoseDetection):
+    def update(self, detection: ObjectDetection):
         """
         根据新的检测结果更新轨迹状态。
         Args:
-            detection (PoseDetection): 匹配到的新检测结果。
+            detection (ObjectDetection): 匹配到的新检测结果。
         """
-        box = detection.box
+        # 你的 ObjectDetection 现在包含一个 Rect 对象
+        box = detection.rect # 获取 Rect 对象
         center_x = (box.x1 + box.x2) / 2
         center_y = (box.y1 + box.y2) / 2
         width = box.x2 - box.x1
@@ -110,8 +114,9 @@ class UnifiedTrack:
 
         self.kf.update(measurement)  # 更新 Kalman 滤波器状态
 
+        # 将新的检测结果的特征添加到特征队列中
         if self.use_reid and detection.features:
-            self.features.append(np.array(detection.features))
+            self.features.append(np.array(detection.features))  # 确保转换为 np.array
 
         self.hits += 1
         self.time_since_update = 0  # 重置未更新计数
@@ -119,15 +124,24 @@ class UnifiedTrack:
     def get_state(self) -> Rect:
         """从 Kalman 滤波器的当前状态中获取预测的边界框。"""
         x, y, a, h = self.kf.x[:4].flatten()
-        w = a * h # 从宽高比和高度计算宽度
+        w = a * h  # 从宽高比和高度计算宽度
+        # 返回 Rect 对象
         return Rect(x1=x - w / 2, y1=y - h / 2, x2=x + w / 2, y2=y + h / 2)
 
-    def get_feature(self) -> Optional[np.ndarray]:
+    def get_mean_feature(self) -> Optional[np.ndarray]:
         """
         如果 use_reid 为 True，则返回平均 Re-ID 特征，否则返回 None。
         """
         if self.use_reid and self.features and len(self.features) > 0:
             return np.mean(list(self.features), axis=0)
+        return None
+
+    def get_last_feature(self) -> Optional[np.ndarray]:
+        """
+        如果 use_reid 为 True，则返回最新的 Re-ID 特征，否则返回 None。
+        """
+        if self.use_reid and self.features and len(self.features) > 0:
+            return self.features[-1]
         return None
 
     def is_confirmed(self, min_hits: int) -> bool:

@@ -43,7 +43,7 @@ void draw_pose_results(cv::Mat& image, const std::vector<YoloPose>& pose_detecti
             }
         }
         // Draw class score (optional)
-        std::string label = "Cls: " + std::to_string(pose.cls);
+        std::string label = "Cls: " + std::to_string(pose.cls) + " Score: " + std::to_string(pose.conf);
         cv::putText(image, label, cv::Point(pose.lx, pose.ly - 10), cv::FONT_HERSHEY_SIMPLEX, 0.5, box_color, 1); // Text color matches box
     }
 }
@@ -55,14 +55,14 @@ std::vector<long long> total_process_times;
 void benchmark_yolo_pose_efficient_api(int num_iterations = 100, bool display_results = true) {
     // Load multiple images for batching
     std::vector<std::string> image_paths = {
-        "/opt/images/supermarket/staff1.png",
-        "/opt/images/supermarket/staff2.png",
-        "/opt/images/supermarket/staff3.png",
-        "/opt/images/supermarket/staff4.png",
-        "/opt/images/supermarket/staff5.png",
-        "/opt/images/supermarket/staff6.png",
-        "/opt/images/supermarket/staff7.png",
-        "/opt/images/supermarket/staff8.png"
+        "/opt/images/supermarket/customer1.png",
+        "/opt/images/supermarket/customer2.png",
+        "/opt/images/supermarket/customer3.png",
+        "/opt/images/supermarket/customer4.png",
+        // "/opt/images/supermarket/customer5.png",
+        // "/opt/images/supermarket/customer6.png",
+        // "/opt/images/supermarket/customer7.png",
+        // "/opt/images/supermarket/customer8.png"
     };
 
     std::vector<cv::Mat> loaded_original_images; // Keep original cv::Mat for data and cloning for display
@@ -148,17 +148,20 @@ void benchmark_yolo_pose_efficient_api(int num_iterations = 100, bool display_re
                 if (c_results.results[i].image_idx < loaded_original_images.size()) {
                     std::vector<YoloPose> cpp_poses_for_display;
                     for (int j = 0; j < c_results.results[i].num_detections; ++j) {
-                        // Convert C_YoloPose back to YoloPose C++ struct for display map
+
+                        // 将 C_YoloPose 转换为 C++ YoloPose 结构体
                         YoloPose p;
                         p.lx = c_results.results[i].detections[j].lx;
                         p.ly = c_results.results[i].detections[j].ly;
                         p.rx = c_results.results[i].detections[j].rx;
                         p.ry = c_results.results[i].detections[j].ry;
                         p.cls = static_cast<int>(c_results.results[i].detections[j].cls);
+                        p.conf = c_results.results[i].detections[j].conf;
 
+                        // 解析关键点数据
                         p.pts.clear();
                         for(int k=0; k < c_results.results[i].detections[j].num_pts; ++k) {
-                            YoloPoint kp{}; // Correctly referencing nested KeyPoint
+                            YoloPoint kp{};
                             kp.x = static_cast<int>(c_results.results[i].detections[j].pts[k].x);
                             kp.y = static_cast<int>(c_results.results[i].detections[j].pts[k].y);
                             kp.conf = c_results.results[i].detections[j].pts[k].conf;
@@ -243,6 +246,6 @@ int main() {
     c_register_models();
 
     // Call the new C API benchmark function
-    benchmark_yolo_pose_efficient_api(1000, true); // Reduced iterations for quicker testing (e.g., for 8 images in 10 iterations)
+    benchmark_yolo_pose_efficient_api(1, true); // Reduced iterations for quicker testing (e.g., for 8 images in 10 iterations)
     return 0;
 }
