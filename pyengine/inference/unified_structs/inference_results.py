@@ -3,18 +3,19 @@ from dataclasses import dataclass, field, asdict, astuple
 from typing import List, Union, Any, Type, TypeVar, Tuple
 
 # 为泛型类方法定义 TypeVar
-T = TypeVar('T', bound='YoloBase')
+T = TypeVar('T', bound='InferenceResult')
 
 
 @dataclass
-class YoloBase:
+class InferenceResult:
+
     """基类，提供通用的序列化和反序列化方法。"""
 
     def to_list(self) -> Tuple[Any, ...]:
         """将数据类实例转换为其字段值的元组。"""
         return astuple(self)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self: T) -> dict[str, Any]: # 添加了 self 的类型提示
         """将数据类实例转换为字段名和值的字典。"""
         return asdict(self)
 
@@ -55,3 +56,38 @@ class YoloBase:
             return cls.from_dict(data_parsed)
         else:
             raise TypeError("JSON 必须表示一个字典或字典列表")
+
+
+@dataclass
+class Rect:
+    """Represents a rectangle with its top-left and bottom-right coordinates."""
+    x1: float = 0.0 # 左上角 x 坐标
+    y1: float = 0.0 # 左上角 y 坐标
+    x2: float = 0.0 # 右下角 x 坐标
+    y2: float = 0.0 # 右下角 y 坐标
+
+
+@dataclass
+class ObjectDetection(InferenceResult):
+    """Represents detection bounding box with class and confidence."""
+    rect: Rect = field(default_factory=Rect)  # 包含检测框的矩形
+    classification: int = 0
+    confidence: float = 0.0
+
+    # ----------------- 用于追踪用的特殊字段，平时不使用 -----------------
+    track_id: int = 0
+    features: List[float] = field(default_factory=list)  # 特征向量列表
+
+
+@dataclass
+class Point(InferenceResult):
+    """Represents a single keypoint with its coordinates and confidence."""
+    x: float = 0
+    y: float = 0
+    confidence: float = 0.0
+
+
+@dataclass
+class Skeleton(ObjectDetection):
+    """Represents a human skeleton, inheriting bounding box info and adding keypoints."""
+    points: List[Point] = field(default_factory=list) # 一个Point对象的列表

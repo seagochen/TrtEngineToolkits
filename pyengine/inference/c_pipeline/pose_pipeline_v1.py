@@ -1,4 +1,6 @@
 import ctypes
+from typing import Dict, List
+
 import numpy as np
 import cv2  # Import cv2 for image resizing and type checks
 
@@ -181,7 +183,7 @@ class PosePipeline:
 
         logger.info("PosePipeline", "Pipeline created successfully.")
 
-    def process_batched_images(self, images: list[np.ndarray]) -> list[dict]:
+    def process_batched_images(self, images: List[np.ndarray]) -> List[Dict]:
         """
         批量处理图像，经过YoloPose和EfficientNet pipeline。
 
@@ -337,3 +339,185 @@ class PosePipeline:
         """
         self.destroy_pipeline()
 
+
+
+"""
+import cv2
+import numpy as np
+import os
+import sys
+
+# 假设你的 PosePipeline 类定义在以下路径
+# 请确保 pyengine 目录在你的 Python 模块搜索路径中
+# 例如，可以通过将项目根目录添加到 PYTHONPATH
+# 或者确保脚本从正确的目录运行
+try:
+    from pyengine.inference.c_pipeline.pose_pipeline_v1 import PosePipeline
+except ImportError:
+    print("Error: Could not import PosePipeline.")
+    print("Please ensure 'pyengine' is in your Python path or working directory.")
+    print("Example: sys.path.append('/path/to/your/project/root')")
+    sys.exit(1)
+
+# --- 定义姿态骨架连接（COCO格式常见）---
+# 0: nose, 1: left_eye, 2: right_eye, 3: left_ear, 4: right_ear
+# 5: left_shoulder, 6: right_shoulder, 7: left_elbow, 8: right_elbow,
+# 9: left_wrist, 10: right_wrist, 11: left_hip, 12: right_hip,
+# 13: left_knee, 14: right_knee, 15: left_ankle, 16: right_ankle
+
+KEYPOINT_COLORS = [
+    (0, 0, 255), (0, 255, 0), (255, 0, 0), (0, 255, 255), (255, 255, 0),  # Red, Green, Blue, Cyan, Yellow
+    (255, 0, 255), (128, 0, 128), (0, 128, 0), (128, 128, 0), (0, 0, 128),
+    # Magenta, Purple, Dark Green, Olive, Dark Blue
+    (128, 0, 0), (0, 128, 128), (192, 192, 192), (64, 64, 64), (128, 64, 0),  # Dark Red, Teal, Silver, Dark Gray, Brown
+    (0, 128, 64), (64, 0, 128)  # Teal-Green, Purple-Blue
+]
+
+# 为不同分类结果定义边界框颜色
+BBOX_COLOR_CLASS_0 = (0, 0, 255)  # 蓝色代表分类 0 （例如，男性）
+BBOX_COLOR_CLASS_1 = (0, 255, 0)  # 绿色代表分类 1 （例如，女性）
+# 默认颜色或未指定分类时的颜色 (不再使用BBOX_COLOR)
+# BBOX_COLOR = (0, 255, 255) # Cyan for bounding boxes
+
+TEXT_COLOR = (255, 255, 255)  # White for text
+FONT_SCALE = 0.7
+THICKNESS = 2
+KEYPOINT_RADIUS = 5
+
+
+def draw_detections(image: np.ndarray, detections: list, image_idx: int) -> np.ndarray:
+    # Make a copy to avoid modifying the original image
+    display_image = image.copy()
+
+    for det in detections:
+        # Draw bounding box
+        bbox = det['bbox']
+        lx, ly, rx, ry = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+
+        classification = det['classification']
+        confidence = det['confidence']
+        current_bbox_color = (0, 255, 255)  # Default color if classification is not recognized
+        label = f"Class {classification}: {confidence:.2f}"
+
+        # 根据分类得分选择边界框颜色
+        if classification == 0:
+            current_bbox_color = BBOX_COLOR_CLASS_0
+            label = f"Class 0: {confidence:.2f}"
+        elif classification == 1:
+            current_bbox_color = BBOX_COLOR_CLASS_1
+            label = f"Class 1: {confidence:.2f}"
+
+        cv2.rectangle(display_image, (lx, ly), (rx, ry), current_bbox_color, THICKNESS)
+
+        # Put classification text
+        cv2.putText(display_image, label, (lx, ly - 10), cv2.FONT_HERSHEY_SIMPLEX, FONT_SCALE, TEXT_COLOR, THICKNESS)
+
+        # Draw keypoints (no skeleton lines)
+        keypoints_list = det['keypoints']
+        for i, kp in enumerate(keypoints_list):
+            if kp['conf'] > 0.1:  # Only draw keypoints with sufficient confidence
+                center = (int(kp['x']), int(kp['y']))
+                color = KEYPOINT_COLORS[i % len(KEYPOINT_COLORS)]  # Cycle through colors
+                cv2.circle(display_image, center, KEYPOINT_RADIUS, color, -1)  # -1 means filled circle
+
+    return display_image
+
+
+if __name__ == "__main__":
+    # 你的共享库路径
+    LIBRARY_PATH = "/home/user/projects/TrtEngineToolkits/build/lib/libjetson.so"
+
+    # 你的 TensorRT 引擎文件路径
+    YOLO_ENGINE = "/opt/models/yolov8n-pose.engine"
+    EFFICIENT_ENGINE = "/opt/models/efficientnet_b0_feat_logits.engine"
+
+    pipeline = None
+    try:
+        pipeline = PosePipeline(LIBRARY_PATH)
+
+        # 注册模型 (只需调用一次)
+        pipeline.register_models()
+
+        # 创建管道实例
+        pipeline.create_pipeline(
+            yolo_engine_path=YOLO_ENGINE,
+            efficient_engine_path=EFFICIENT_ENGINE,
+            yolo_max_batch=4,
+            efficient_max_batch=32,
+            yolo_cls_thresh=0.5,
+            yolo_iou_thresh=0.4
+        )
+
+        # 加载图像
+        image_paths = [
+            "/opt/images/supermarket/customer1.png",
+            "/opt/images/supermarket/customer2.png",
+            "/opt/images/supermarket/customer3.png",
+            "/opt/images/supermarket/customer4.png",
+        ]
+
+        # 存储加载的图像，以及它们的索引，以便在结果处理后能找到对应的原始图像
+        original_images = []
+        loaded_images_for_pipeline = []  # This list will be passed to the pipeline
+
+        print("Loading images...")
+        for i, path in enumerate(image_paths):
+            img = cv2.imread(path)
+            if img is None:
+                print(f"Warning: Could not load image from {path}. Skipping.")
+                continue
+
+            # Resize image to 640x640 for the pipeline
+            img_resized = cv2.resize(img, (640, 640))
+
+            original_images.append({'idx': i, 'path': path, 'image_data': img_resized})  # Store resized image
+            loaded_images_for_pipeline.append(img_resized)
+            print(
+                f"Loaded and resized {path} to {img_resized.shape[1]}x{img_resized.shape[0]} (Shape: {img_resized.shape})")
+
+        if not loaded_images_for_pipeline:
+            print("No images loaded. Exiting.")
+            sys.exit(0)
+
+        # 处理图像批次
+        print("\nProcessing images through pipeline...")
+        results = pipeline.process_batched_images(loaded_images_for_pipeline)
+
+        print("\nDisplaying results:")
+        for img_res in results:
+            image_idx_in_original_list = img_res['image_idx']
+
+            # Find the corresponding original image data
+            original_image_info = next((item for item in original_images if item['idx'] == image_idx_in_original_list),
+                                       None)
+
+            if original_image_info is None:
+                print(f"Error: Original image for index {image_idx_in_original_list} not found.")
+                continue
+
+            original_image_data = original_image_info['image_data']
+            image_path = original_image_info['path']
+
+            # Draw detections on the image
+            drawn_image = draw_detections(original_image_data, img_res['detections'], image_idx_in_original_list)
+
+            # Display the image
+            window_name = f"Image {image_idx_in_original_list}: {os.path.basename(image_path)}"
+            cv2.imshow(window_name, drawn_image)
+            print(f"Displayed image: {window_name} with {len(img_res['detections'])} detections.")
+
+        # Wait for a key press and then close all windows
+        print("\nPress any key to close all image windows...")
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    except RuntimeError as e:
+        print(f"Runtime Error: {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+    finally:
+        # 确保在程序退出时销毁pipeline
+        if pipeline:
+            pipeline.destroy_pipeline()
+            print("Pipeline destroyed.")
+"""

@@ -82,7 +82,7 @@ static C_YoloPose* convert_yolo_poses_to_c(const std::vector<YoloPose>& cpp_pose
             for (size_t k = 0; k < cpp_poses[i].pts.size(); ++k) {
                 c_poses_raw[i].pts[k].x = static_cast<float>(cpp_poses[i].pts[k].x);
                 c_poses_raw[i].pts[k].y = static_cast<float>(cpp_poses[i].pts[k].y);
-                c_poses_raw[i].pts[k].conf = 0.0f;
+                c_poses_raw[i].pts[k].conf = cpp_poses[i].pts[k].conf;
             }
         }
 

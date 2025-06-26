@@ -1,11 +1,11 @@
+# deepsort.py
 from typing import List, Dict
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 # 从你的文件导入数据结构
-from pyengine.inference.c_wrapper.c_pose_data_struct import Rect, PoseDetection
-from pyengine.inference.c_wrapper.c_pose_pipeline_wrapper import PosePipelineWrapper
+from pyengine.inference.unified_structs.inference_results import ObjectDetection, Rect
 from pyengine.algorithms.tracker.tracker import UnifiedTrack
 
 
@@ -19,8 +19,6 @@ class DeepSORTTracker:
 
     def _iou_cost(self, track_bbox: Rect, det_bbox: Rect) -> float:
         # Calculate IoU distance (1 - IoU)
-        # Your IoU calculation logic here, or use a utility function
-        # For simplicity, returning 1 if no overlap or negative for distance
 
         # Convert Rect to (x1, y1, x2, y2)
         bb1 = [track_bbox.x1, track_bbox.y1, track_bbox.x2, track_bbox.y2]
@@ -50,7 +48,7 @@ class DeepSORTTracker:
         similarity = np.dot(track_feature, det_feature)
         return 1.0 - similarity  # Return 1 - similarity as distance/cost
 
-    def update(self, detections: List[PoseDetection]) -> Dict[int, Rect]:
+    def update(self, detections: List[ObjectDetection]) -> Dict[int, Rect]:
         # 1. Predict
         for track in self.tracks:
             track.predict()
@@ -71,10 +69,13 @@ class DeepSORTTracker:
 
             for j, det in enumerate(detections):
                 # IoU cost
-                iou_cost = self._iou_cost(track_predicted_bbox, det.box)
+                # det.box 不存在，现在 det 是 ObjectDetection，其边界框信息是 det.rect
+                det_bbox_rect = det.rect # 直接使用 ObjectDetection 内部的 Rect 对象
+                iou_cost = self._iou_cost(track_predicted_bbox, det_bbox_rect)
 
                 # Re-ID cost (only if feature exists)
                 reid_cost = np.inf
+                # det.features 现在是 List[float]，需要将其转换为 np.ndarray
                 if track_feature is not None and det.features:
                     reid_cost = self._cosine_distance(track_feature, np.array(det.features))
 
@@ -113,8 +114,11 @@ class DeepSORTTracker:
 
         # 6. Initialize New Tracks
         for det_idx in unmatched_dets_indices:
-            new_track = UnifiedTrack(detections[det_idx])
-            self.tracks.append(new_track)
+            # 只有当检测的置信度高于某个阈值时，才考虑初始化新轨迹
+            # 使用 ObjectDetection 的 confidence 字段
+            if detections[det_idx].confidence >= 0.5:  # 假设一个合理的置信度
+                new_track = UnifiedTrack(detections[det_idx])  # DeepSORTTracker 默认 use_reid=True
+                self.tracks.append(new_track)
 
         # Filter out "tentative" new tracks that haven't been seen enough times
         # This is part of DeepSORT's `min_hits` logic
@@ -125,116 +129,3 @@ class DeepSORTTracker:
 
         return final_tracks_output
 
-
-# --- Example Usage (Integration with your PosePipelineWrapper) ---
-if __name__ == "__main__":
-    # Define the paths of engines and libs (adjust as per your system)
-    YOLO_POSE_ENGINE = "/opt/models/yolov8s-pose.engine"
-    EFFICIENTNET_ENGINE = "/opt/models/efficientnet_b0_feat_logits.engine"
-    C_LIB = "/opt/TrtEngineToolkits/lib/libjetson.so"
-
-    # Mock logger if not fully set up in your environment
-    import logging
-
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("DeepSORT_Example")
-
-    pipeline_wrapper = None
-    tracker = None
-    try:
-        # Initialize your C++ pipeline wrapper
-        pipeline_wrapper = PosePipelineWrapper(
-            pose_model_path=YOLO_POSE_ENGINE,
-            feats_model_path=EFFICIENTNET_ENGINE,
-            c_lib_path=C_LIB,
-            maximum_det_items=100,  # Max detections from the C++ side
-            cls_threshold=0.5,  # Detection confidence threshold from C++
-            iou_threshold=0.4  # NMS IoU threshold from C++
-        )
-
-        # Initialize your DeepSORT tracker
-        # max_age: tracks are deleted after this many unmatched frames
-        # min_hits: new tracks need this many hits to become confirmed
-        tracker = DeepSORTTracker(max_age=30, min_hits=3, iou_threshold=0.3, reid_threshold=0.5)
-
-        # Simulate processing a video sequence
-        # You would replace this with actual video frame reading (e.g., using OpenCV)
-
-        # Example image paths (from your wrapper example)
-        test_image_paths = [
-            "/opt/images/supermarket/customer1.png",
-            "/opt/images/supermarket/customer2.png",
-            # Add more images to simulate sequence
-            "/opt/images/supermarket/customer3.png",
-            "/opt/images/supermarket/customer4.png",
-            "/opt/images/supermarket/customer5.png",
-            "/opt/images/supermarket/customer6.png",
-            "/opt/images/supermarket/customer7.png",
-            "/opt/images/supermarket/customer8.png",
-            "/opt/images/supermarket/staff1.png",
-            "/opt/images/supermarket/staff2.png",
-            "/opt/images/supermarket/staff3.png",
-            "/opt/images/supermarket/staff4.png",
-            "/opt/images/supermarket/staff5.png",
-            "/opt/images/supermarket/staff6.png",
-            "/opt/images/supermarket/staff7.png",
-            "/opt/images/supermarket/staff8.png",
-        ]
-
-        import cv2
-
-        frame_idx = 0
-        for img_path in test_image_paths:
-            frame_idx += 1
-            print(f"\n--- Processing Frame {frame_idx}: {img_path} ---")
-
-            img = cv2.imread(img_path)
-            if img is None:
-                logger.warning(f"Failed to load image: {img_path}")
-                continue
-
-            # Add image to C++ pipeline
-            pipeline_wrapper.add_image(img)
-
-            # Run C++ inference to get detections with features
-            results_list = pipeline_wrapper.inference()
-
-            if not results_list:
-                logger.warning(f"No detections from C++ pipeline for frame {frame_idx}.")
-                continue
-
-            # Get detections for the current frame (assuming batch size of 1 for now)
-            current_frame_detections = results_list[0].detections
-
-            # Optional: Filter detections based on Python-side confidence threshold if needed
-            # For DeepSORT, usually you pass detections that are already high-confidence
-            filtered_detections = [
-                d for d in current_frame_detections if d.confidence > 0.6  # Example Python-side threshold
-            ]
-
-            # Update the DeepSORT tracker
-            tracked_objects = tracker.update(filtered_detections)
-
-            print(f"Frame {frame_idx} tracked objects: {len(tracked_objects)}")
-            for track_id, bbox in tracked_objects.items():
-                print(f"  Track ID: {track_id}, BBox: ({bbox.x1:.2f}, {bbox.y1:.2f}, {bbox.x2:.2f}, {bbox.y2:.2f})")
-
-            # --- Visualization (Optional) ---
-            # You can draw bounding boxes and IDs on the original image here
-            display_img = img.copy()
-            for track_id, bbox in tracked_objects.items():
-                x1, y1, x2, y2 = map(int, [bbox.x1, bbox.y1, bbox.x2, bbox.y2])
-                cv2.rectangle(display_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(display_img, f"ID: {track_id}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0),
-                            2)
-
-            # cv2.imshow("Tracked Frame", display_img)
-            # cv2.waitKey(100) # Wait 100ms
-
-    except Exception as e:
-        logger.error(f"An error occurred: {e}")
-    finally:
-        if pipeline_wrapper:
-            pipeline_wrapper.release()
-        # cv2.destroyAllWindows() # If you used cv2.imshow
-        print("\n--- DeepSORT Example Finished ---")

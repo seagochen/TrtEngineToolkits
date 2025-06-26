@@ -1,9 +1,11 @@
+# sort.py
 from typing import List, Dict
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
-from pyengine.inference.c_wrapper.c_pose_data_struct import PoseDetection, Rect
+# 从你的数据结构模块导入 ObjectDetection 和 Rect
+from pyengine.inference.unified_structs.inference_results import ObjectDetection, Rect
 from pyengine.algorithms.tracker.tracker import UnifiedTrack
 
 
@@ -32,7 +34,7 @@ class SORTTracker:
         Returns:
             float: IoU 值。
         """
-        # Convert Rect to (x1, y1, x2, y2)
+        # Rect 已经是 (x1, y1, x2, y2) 形式，直接访问属性
         bb1 = [bbox1.x1, bbox1.y1, bbox1.x2, bbox1.y2]
         bb2 = [bbox2.x1, bbox2.y1, bbox2.x2, bbox2.y2]
 
@@ -55,11 +57,11 @@ class SORTTracker:
         iou = intersection_area / union_area
         return iou
 
-    def update(self, detections: List[PoseDetection]) -> Dict[int, Rect]:
+    def update(self, detections: List[ObjectDetection]) -> Dict[int, Rect]:
         """
         更新追踪器状态，处理当前帧的检测结果。
         Args:
-            detections (List[PoseDetection]): 当前帧的检测结果列表。
+            detections (List[ObjectDetection]): 当前帧的检测结果列表。
         Returns:
             Dict[int, Rect]: 字典，键是轨迹ID，值是对应轨迹的边界框。
                              只包含被确认的或未达到min_hits但还在追踪中的轨迹。
@@ -80,7 +82,9 @@ class SORTTracker:
             track_predicted_bbox = track.get_state()
 
             for j, det in enumerate(detections):
-                iou = self._calculate_iou(track_predicted_bbox, det.box)
+                # det.box 不存在，现在 det 是 ObjectDetection，其边界框信息是 det.rect
+                det_bbox_rect = det.rect # 直接使用 ObjectDetection 内部的 Rect 对象
+                iou = self._calculate_iou(track_predicted_bbox, det_bbox_rect)
                 if iou >= self.iou_threshold:
                     cost_matrix[i, j] = 1.0 - iou  # IoU 越高，成本越低
 
@@ -112,8 +116,8 @@ class SORTTracker:
         # 7. 初始化新轨迹
         for det_idx in unmatched_dets_indices:
             # 只有当检测的置信度高于某个阈值时，才考虑初始化新轨迹
-            # 这里使用一个内部阈值，或者你的C++封装已经过滤过了
-            if detections[det_idx].confidence >= 0.5:  # 假设一个合理的置信度
+            # 使用 ObjectDetection 的 confidence 字段
+            if detections[det_idx].confidence >= 0.5:  # 假设一个合理的置信度，可以作为 SORT 参数
                 new_track = UnifiedTrack(detections[det_idx], use_reid=self.use_reid)
                 self.tracks.append(new_track)
 
