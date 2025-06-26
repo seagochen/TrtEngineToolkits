@@ -98,7 +98,10 @@ class DeepSORTTracker:
 
         for i, track in enumerate(self.tracks):
             track_predicted_bbox = track.get_state()
-            track_feature = track.get_feature()  # This might be None if track was created without features (e.g. from SORT) or feature deque is empty
+
+            # 获取目标跟踪的特征
+            track_feature = track.get_mean_feature()
+            # track_feature = track.get_last_feature()
 
             for j, det in enumerate(detections):
                 det_bbox_rect = det.rect
@@ -229,20 +232,15 @@ class DeepSORTTracker:
 
 
 """
-import sys
 import time
-import traceback # Keep traceback for comprehensive error logging
 
 import cv2
-import os
 
-from pyengine.algorithms.tracker.deepsort import DeepSORTTracker # Changed from SORTTracker
-from pyengine.visualization.inference_drawer import GenericInferenceDrawer
-from pyengine.inference.unified_structs.pipeline_converter import convert_pipeline_v1_to_skeletons
+from pyengine.algorithms.tracker.deepsort import DeepSORTTracker  # Changed from SORTTracker
 from pyengine.inference.c_pipeline.pose_pipeline_v1 import PosePipeline
+from pyengine.inference.unified_structs.pipeline_converter import convert_pipeline_v1_to_skeletons
 from pyengine.utils.logger import logger
-from pyengine.inference.unified_structs.inference_results import Skeleton, ObjectDetection # Explicitly import needed classes
-
+from pyengine.visualization.inference_drawer import GenericInferenceDrawer
 
 if __name__ == "__main__":
     # Define your paths
@@ -267,7 +265,7 @@ if __name__ == "__main__":
             yolo_max_batch=1, # Still 1 for single video stream
             efficient_max_batch=32, # EfficientNet batch size can remain larger
             yolo_cls_thresh=0.5,
-            yolo_iou_thresh=0.2
+            yolo_iou_thresh=0.7
         )
         logger.info("Main", "C++ PosePipeline initialized.")
 
@@ -278,7 +276,7 @@ if __name__ == "__main__":
         # max_age is typically higher (e.g., 30-70) as Re-ID can bridge larger gaps.
         # min_hits is also typically higher (e.g., 3-5) for more robust track confirmation.
         # However, for a quick test, let's start with common DeepSORT values.
-        tracker = DeepSORTTracker(max_age=70, min_hits=3, iou_threshold=0.3, reid_threshold=0.5)
+        tracker = DeepSORTTracker(max_age=100, min_hits=3, iou_threshold=0.3, reid_threshold=0.1)
         logger.info("Main", "DeepSORTTracker initialized.")
         # --- END MODIFIED ---
 
@@ -361,9 +359,10 @@ if __name__ == "__main__":
             current_fps = frame_idx / elapsed_time
             cv2.putText(display_frame, f"FPS: {current_fps:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
+            # Show the frame
             cv2.imshow("DeepSORT Tracking Demo", display_frame)
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(30) & 0xFF == ord('q'):
                 logger.info("Main", "Quit key 'q' pressed. Exiting.")
                 break
 

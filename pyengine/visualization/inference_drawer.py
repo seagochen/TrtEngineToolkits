@@ -104,7 +104,7 @@ class GenericInferenceDrawer:
         # 标签格式调整
         label_text = ""
         if enable_track_id and detection.track_id != 0:  # 只有当 track_id 非0时才显示 ID
-            label_text = f"ID: {detection.track_id} - "
+            label_text = f"#{detection.track_id} "
         label_text += f"Class: {class_label_display} Score: {detection.confidence:.2f}"
 
         # 绘制边界框

@@ -114,6 +114,7 @@ class UnifiedTrack:
 
         self.kf.update(measurement)  # 更新 Kalman 滤波器状态
 
+        # 将新的检测结果的特征添加到特征队列中
         if self.use_reid and detection.features:
             self.features.append(np.array(detection.features))  # 确保转换为 np.array
 
@@ -127,12 +128,20 @@ class UnifiedTrack:
         # 返回 Rect 对象
         return Rect(x1=x - w / 2, y1=y - h / 2, x2=x + w / 2, y2=y + h / 2)
 
-    def get_feature(self) -> Optional[np.ndarray]:
+    def get_mean_feature(self) -> Optional[np.ndarray]:
         """
         如果 use_reid 为 True，则返回平均 Re-ID 特征，否则返回 None。
         """
         if self.use_reid and self.features and len(self.features) > 0:
             return np.mean(list(self.features), axis=0)
+        return None
+
+    def get_last_feature(self) -> Optional[np.ndarray]:
+        """
+        如果 use_reid 为 True，则返回最新的 Re-ID 特征，否则返回 None。
+        """
+        if self.use_reid and self.features and len(self.features) > 0:
+            return self.features[-1]
         return None
 
     def is_confirmed(self, min_hits: int) -> bool:
