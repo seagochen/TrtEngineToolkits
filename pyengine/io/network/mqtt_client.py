@@ -6,10 +6,10 @@ import threading
 
 
 class MQTTClient:
-    def __init__(self, address: str, port: int, client_id: str,
+    def __init__(self, host: str, port: int, client_id: str,
                  username: Optional[str] = None, password: Optional[str] = None,
                  max_reconnect_attempts: int = 5, reconnect_interval: int = 10):
-        self.address = address
+        self.host = host
         self.port = port
         self.client_id = client_id
         self.username = "" if username is None else username
@@ -46,11 +46,11 @@ class MQTTClient:
         """
         self.connected_event.clear()  # 每次连接前重置事件状态
         try:
-            self.client.connect(self.address, self.port, 60)
+            self.client.connect(self.host, self.port, 60)
             self.client.loop_start()
 
             # 等待 on_connect 回调函数设置 event，最多等待 timeout 秒
-            logger.info("MQTTClient", f"Waiting for connection to {self.address}:{self.port}...")
+            logger.info("MQTTClient", f"Waiting for connection to {self.host}:{self.port}...")
 
             # .wait() 会阻塞当前线程，直到另一个线程调用 .set() 或超时
             # 如果事件被设置，返回 True；如果超时，返回 False
@@ -60,12 +60,12 @@ class MQTTClient:
             else:
                 # 等待超时
                 logger.error("MQTTClient",
-                             f"Connection to {self.address}:{self.port} timed out after {timeout} seconds.")
+                             f"Connection to {self.host}:{self.port} timed out after {timeout} seconds.")
                 self.disconnect()  # 连接超时，清理资源
                 return False
 
         except Exception as e:
-            logger.error_trace("MQTTClient", f"Failed to initiate connect to {self.address}:{self.port} - {str(e)}")
+            logger.error_trace("MQTTClient", f"Failed to initiate connect to {self.host}:{self.port} - {str(e)}")
             return False
 
     def disconnect(self):
@@ -103,7 +103,7 @@ class MQTTClient:
     def on_connect(self, client, userdata, flags, rc):
         """连接回调"""
         if rc == 0:
-            logger.info("MQTTClient", f"Connected to the MQTT broker at {self.address}:{self.port}")
+            logger.info("MQTTClient", f"Connected to the MQTT broker at {self.host}:{self.port}")
             self.is_connected = True
         else:
             logger.error("MQTTClient", f"Failed to connect: {mqtt.error_string(rc)}")
@@ -158,7 +158,7 @@ if __name__ == "__main__":
         print(f"Received message on topic '{topic}': {payload.decode('utf-8')}")
 
 
-    mqtt_client = MQTTClient(address="localhost", port=1883, client_id="test_client_sync")
+    mqtt_client = MQTTClient(host="localhost", port=1883, client_id="test_client_sync")
     mqtt_client.set_message_callback(message_handler)
 
     # connect() 现在会阻塞，直到连接成功或超时

@@ -137,25 +137,24 @@ void InferYoloV8<YoloResultType, ConvertFunc>::postprocess(int batchIdx, const s
     // This ensures std::any_cast will succeed even if no results are found.
     results_out = std::vector<YoloResultType>();
 
-    // Get parameters with safer access (using get_param_safe or try-catch block)
-    // For simplicity, I'm re-adding the try-catch from previous suggestions.
-    // Ideally, you'd use a helper like `get_param_safe` here.
-    float cls = 0.4f;
-    float iou = 0.5f;
-    try {
-        if (args.count("cls")) {
-            cls = std::any_cast<float>(args.at("cls"));
-        }
-        if (args.count("iou")) {
-            iou = std::any_cast<float>(args.at("iou"));
-        }
-    } catch (const std::bad_any_cast& e) {
-        LOG_ERROR("InferYoloV8", "Postprocess: Bad any_cast for cls or iou parameter: " + std::string(e.what()));
+    // --- MODIFICATION START ---
+    // Explicitly check for the existence of "cls" and "iou" keys.
+    // This is more robust than relying on a try-catch block for logic flow.
+    if (args.find("cls") == args.end()) {
+        LOG_ERROR("InferYoloV8", "Postprocess: Critical parameter 'cls' not found in arguments map. Aborting.");
         return;
-    } catch (const std::out_of_range& e) {
-        LOG_WARNING("InferYoloV8", "Postprocess: Required parameter not found: " + std::string(e.what()) + ". Using default values.");
+    }
+    if (args.find("iou") == args.end()) {
+        LOG_ERROR("InferYoloV8", "Postprocess: Critical parameter 'iou' not found in arguments map. Aborting.");
+        return;
     }
 
+    // Directly access the values, now that we know they exist.
+    // The `std::any_cast` will throw if the type is wrong, which is appropriate behavior.
+    float cls = std::any_cast<float>(args.at("cls"));
+    float iou = std::any_cast<float>(args.at("iou"));
+
+    // --- MODIFICATION END ---
 
     if (batchIdx >= maximum_batch) {
         LOG_ERROR("InferYoloV8", "Postprocess: batchIdx out of bounds. Max batch: " + std::to_string(maximum_batch) + ", Current batchIdx: " + std::to_string(batchIdx));

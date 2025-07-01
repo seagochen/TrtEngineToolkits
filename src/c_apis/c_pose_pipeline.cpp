@@ -360,12 +360,33 @@ perform_efficientnet_inference(YoloEfficientContextImpl* context,
         for(int i = 0; i < current_efficient_batch_images.size(); ++i) {
             std::any single_efficient_result_any;
             context->efficient_model->postprocess(i, context->efficient_params, single_efficient_result_any);
+            // try {
+            //     auto cls_result = std::any_cast<std::vector<float>>(single_efficient_result_any);
+            //     cls_results_sub_batch.push_back(cls_result);
+            // } catch (const std::bad_any_cast& e) {
+            //     std::cerr << "EfficientNet API: Error casting single crop result for batch index " << i << ": " << e.what() << std::endl;
+            //     cls_results_sub_batch.emplace_back();
+            // }  
+            
+            // 上述代码的 try-catch 似乎会给最终的结果带来空向量 
+
             try {
                 auto cls_result = std::any_cast<std::vector<float>>(single_efficient_result_any);
-                cls_results_sub_batch.push_back(cls_result);
+
+                // --- 新增的健壮性检查 ---
+                if (cls_result.empty()) {
+                    // 如果模型返回空结果，也视为一种失败，填充占位符
+                    std::cerr << "EfficientNet API: postprocess returned an empty vector for batch index " << i << "." << std::endl;
+                    cls_results_sub_batch.emplace_back(257, 0.0f); // 257个0 (1个cls + 256个feats)
+                } else {
+                    cls_results_sub_batch.push_back(cls_result);
+                }
+                
             } catch (const std::bad_any_cast& e) {
                 std::cerr << "EfficientNet API: Error casting single crop result for batch index " << i << ": " << e.what() << std::endl;
-                cls_results_sub_batch.emplace_back();
+                
+                // --- 修改点：不再添加空向量，而是添加占位符 ---
+                cls_results_sub_batch.emplace_back(257, 0.0f); // 257个0 (1个cls + 256个feats)
             }
         }
         efficient_net_all_results.insert(efficient_net_all_results.end(), cls_results_sub_batch.begin(), cls_results_sub_batch.end());
@@ -373,43 +394,100 @@ perform_efficientnet_inference(YoloEfficientContextImpl* context,
     return efficient_net_all_results;
 }
 
-// Helper function to merge EfficientNet results back into YoloPose detections
+// // Helper function to merge EfficientNet results back into YoloPose detections
+// static std::map<int, std::vector<YoloPose>>
+// merge_efficientnet_results(int num_original_images,
+//                            const std::map<int, std::vector<YoloPose>>& initial_yolo_detections,
+//                            const std::vector<FlattenedPoseData>& flattened_poses_with_crops,
+//                            const std::vector<std::vector<float>>& efficient_net_results) {
+
+//     std::map<int, std::vector<YoloPose>> final_cpp_detections_map;
+
+//     // Initialize with all original image indices, potentially empty or with initial YoloPose detections
+//     for(int i = 0; i < num_original_images; ++i) {
+//         if (initial_yolo_detections.count(i)) {
+//             final_cpp_detections_map[i] = initial_yolo_detections.at(i);
+//         } else {
+//             final_cpp_detections_map[i] = {}; // No YoloPose detections for this image
+//         }
+//     }
+
+//     // Iterate through flattened poses and update with EfficientNet results
+//     for (size_t i = 0; i < flattened_poses_with_crops.size(); ++i) {
+//         const auto& flat_pose_with_crop = flattened_poses_with_crops[i];
+//         int original_image_idx = flat_pose_with_crop.original_image_idx_in_batch;
+//         size_t original_pose_idx = flat_pose_with_crop.original_pose_idx_in_image;
+
+//         // TODO
+//         // --- 在这里添加第三个检查点 START ---
+//         bool is_valid_feature = (i < efficient_net_results.size() && efficient_net_results[i].size() >= 257);
+//         std::cerr << "--- [DEBUG CHECKPOINT 3: PRE-MERGE] ---\n";
+//         std::cerr << "  Processing detection (ImgIdx=" << original_image_idx << ", PoseIdx=" << original_pose_idx << ")\n";
+//         std::cerr << "    Corresponding feature vector size: " 
+//                   << ((i < efficient_net_results.size()) ? std::to_string(efficient_net_results[i].size()) : "OUT OF BOUNDS")
+//                   << "\n";
+//         std::cerr << "    Is feature considered valid for merge? " << (is_valid_feature ? "Yes" : "No") << "\n";
+//         std::cerr << "----------------------------------------\n";
+//         // --- 第三遍检查点 END ---
+
+//         // if (i < efficient_net_results.size() && efficient_net_results[i].size() >= 257) {
+//         if (is_valid_feature) { // 使用我们刚才计算的布尔值
+//             // Update class and features
+//             if (final_cpp_detections_map.count(original_image_idx) &&
+//                 original_pose_idx < final_cpp_detections_map.at(original_image_idx).size()) {
+
+//                 YoloPose& updated_pose = final_cpp_detections_map.at(original_image_idx)[original_pose_idx];
+//                 updated_pose.cls = static_cast<int>(efficient_net_results[i][0]);
+//                 updated_pose.feats.assign(efficient_net_results[i].begin() + 1, efficient_net_results[i].end());
+//             }
+//         }
+//     }
+//     return final_cpp_detections_map;
+// }
+
+// Replace the entire merge_efficientnet_results function in c_pose_pipeline.cpp
+
 static std::map<int, std::vector<YoloPose>>
 merge_efficientnet_results(int num_original_images,
-                           const std::map<int, std::vector<YoloPose>>& initial_yolo_detections,
+                           const std::map<int, std::vector<YoloPose>>& initial_yolo_detections, // This is no longer used but kept for signature consistency
                            const std::vector<FlattenedPoseData>& flattened_poses_with_crops,
                            const std::vector<std::vector<float>>& efficient_net_results) {
 
+    // --- MODIFICATION START: Build the map from scratch ---
     std::map<int, std::vector<YoloPose>> final_cpp_detections_map;
-
-    // Initialize with all original image indices, potentially empty or with initial YoloPose detections
-    for(int i = 0; i < num_original_images; ++i) {
-        if (initial_yolo_detections.count(i)) {
-            final_cpp_detections_map[i] = initial_yolo_detections.at(i);
-        } else {
-            final_cpp_detections_map[i] = {}; // No YoloPose detections for this image
-        }
+    // Initialize the map with empty vectors for all images to ensure every image index exists
+    for (int i = 0; i < num_original_images; ++i) {
+        final_cpp_detections_map[i] = {};
     }
 
-    // Iterate through flattened poses and update with EfficientNet results
-    for (size_t i = 0; i < flattened_poses_with_crops.size(); ++i) {
-        const auto& flat_pose_with_crop = flattened_poses_with_crops[i];
-        int original_image_idx = flat_pose_with_crop.original_image_idx_in_batch;
-        size_t original_pose_idx = flat_pose_with_crop.original_pose_idx_in_image;
+    // Iterate through the FEATURE results. Only create a final YoloPose object
+    // if a valid feature was generated for it.
+    for (size_t i = 0; i < efficient_net_results.size(); ++i) {
+        // First, check if the feature vector itself is valid.
+        if (efficient_net_results[i].size() >= 257) {
+            
+            // Check if this feature corresponds to a valid flattened pose
+            if (i < flattened_poses_with_crops.size()) {
+                const auto& flat_pose_with_crop = flattened_poses_with_crops[i];
+                int original_image_idx = flat_pose_with_crop.original_image_idx_in_batch;
 
-        if (i < efficient_net_results.size() && efficient_net_results[i].size() >= 257) {
-            // Update class and features
-            if (final_cpp_detections_map.count(original_image_idx) &&
-                original_pose_idx < final_cpp_detections_map.at(original_image_idx).size()) {
+                // Create a new YoloPose object by copying the original detection data
+                YoloPose updated_pose = flat_pose_with_crop.pose; 
 
-                YoloPose& updated_pose = final_cpp_detections_map.at(original_image_idx)[original_pose_idx];
+                // Update the class and assign the new features
                 updated_pose.cls = static_cast<int>(efficient_net_results[i][0]);
                 updated_pose.feats.assign(efficient_net_results[i].begin() + 1, efficient_net_results[i].end());
+
+                // Add the fully-formed, valid pose to our final map
+                final_cpp_detections_map[original_image_idx].push_back(updated_pose);
             }
         }
     }
+    // --- MODIFICATION END ---
+    
     return final_cpp_detections_map;
 }
+
 
 C_BatchedPoseResults c_process_batched_images(
     YoloEfficientContext* context_handle,
@@ -450,6 +528,20 @@ C_BatchedPoseResults c_process_batched_images(
     std::map<int, std::vector<YoloPose>> cpp_batched_pose_detections =
         perform_yolo_inference(context, valid_original_images_for_cropping, processed_to_original_idx_map);
 
+    // --- 在这里添加第一个检查点 START ---
+    // std::cerr << "--- [DEBUG CHECKPOINT 1: AFTER YOLO] ---\n";
+    // for (const auto& [img_idx, poses] : cpp_batched_pose_detections) {
+    //     std::cerr << "  Image Index: " << img_idx << " | Detections: " << poses.size() << "\n";
+    //     for (size_t i = 0; i < poses.size(); ++i) {
+    //         const auto& pose = poses[i];
+    //         std::cerr << "    -> Pose " << i << ": Conf=" << pose.conf 
+    //                   << ", BBox=[" << pose.lx << "," << pose.ly << "," << pose.rx << "," << pose.ry << "]"
+    //                   << ", Keypoints=" << pose.pts.size() << "\n";
+    //     }
+    // }
+    // std::cerr << "------------------------------------------\n";
+    // --- 第一个检查点 END ---
+
     // 3. Flatten detections and crop images for EfficientNet
     std::vector<FlattenedPoseData> all_flattened_poses_with_crops =
         crop_images_for_efficientnet(cpp_batched_pose_detections, valid_original_images_for_cropping,
@@ -458,6 +550,23 @@ C_BatchedPoseResults c_process_batched_images(
     // 4. Perform EfficientNet inference on cropped images
     std::vector<std::vector<float>> efficient_net_all_results =
         perform_efficientnet_inference(context, all_flattened_poses_with_crops);
+
+    // --- 在这里添加第二个检查点 START ---
+    // std::cerr << "--- [DEBUG CHECKPOINT 2: AFTER EFFICIENTNET] ---\n";
+    // std::cerr << "  Total features returned: " << efficient_net_all_results.size() 
+    //           << " (should match total detected poses from Checkpoint 1)\n";
+    // for (size_t i = 0; i < efficient_net_all_results.size(); ++i) {
+    //     const auto& feature_vec = efficient_net_all_results[i];
+    //     std::cerr << "    -> Feature Vector " << i << ": Size=" << feature_vec.size();
+    //     if (!feature_vec.empty()) {
+    //         // 打印分类结果和前3个特征值作为样本
+    //         std::cerr << " | Class=" << feature_vec[0] 
+    //                   << ", Feat[0-2]=" << feature_vec[1] << "," << feature_vec[2] << "," << feature_vec[3];
+    //     }
+    //     std::cerr << "\n";
+    // }
+    // std::cerr << "----------------------------------------------\n";
+    // --- 第二个检查点 END ---
 
     // 5. Merge EfficientNet results back into pose detections
     std::map<int, std::vector<YoloPose>> final_cpp_detections_map =

@@ -1,6 +1,7 @@
 import time
 import cv2
 
+from pyengine.io.streamer.stream_reader import StreamReader
 from pyengine.algorithms.tracker.deepsort import DeepSORTTracker
 from pyengine.algorithms.tracker.sort import SORTTracker
 from pyengine.algorithms.tracker.tracker import UnifiedTrack
@@ -14,14 +15,15 @@ if __name__ == "__main__":
     # Define your paths
     LIBRARY_PATH = "/home/user/projects/TrtEngineToolkits/build/lib/libjetson.so"
     YOLO_POSE_ENGINE = "/opt/models/yolov8s-pose.engine"
-    EFFICIENTNET_ENGINE = "/opt/models/efficientnet_b0_feat_logits.engine" # DeepSORT *needs* features
+    EFFICIENTNET_ENGINE = "/opt/models/efficientnet_b0_feat_logits.engine"  # DeepSORT *needs* features
     SCHEMA_FILE = "./configs/schema.json"
-    VIDEO_PATH = "/opt/videos/raining_street_02.mp4"
+    VIDEO_PATH = "./onsite/MKG_ch24_20240319175959_20240319180516.mp4"
 
     pipeline = None
     tracker = None
     drawer = None
-    cap = None
+    # Replace cap with stream_reader
+    stream_reader = None
     maker = None
 
     try:
@@ -38,41 +40,54 @@ if __name__ == "__main__":
         )
         logger.info("Main", "C++ PosePipeline initialized.")
 
-        # Open video file
-        cap = cv2.VideoCapture(VIDEO_PATH)
-        if not cap.isOpened():
-            raise IOError(f"Could not open video file: {VIDEO_PATH}")
-        logger.info("Main", f"Video stream opened: {VIDEO_PATH}")
+        # --- MODIFICATION START ---
+        # Initialize StreamReader instead of cv2.VideoCapture
+        # Use the desired output resolution and FPS
+        stream_reader = StreamReader(url=VIDEO_PATH, width=1280, height=720, fps=20)
+        if not stream_reader.is_connected():
+            raise IOError(f"Could not open video stream: {VIDEO_PATH}")
+        logger.info("Main", f"StreamReader initialized for: {VIDEO_PATH}")
+        # --- MODIFICATION END ---
 
         # Initialize Drawer
         drawer = GenericInferenceDrawer(SCHEMA_FILE)
         logger.info("Main", f"GenericInferenceDrawer initialized with schema: {SCHEMA_FILE}")
 
         # Initialize tracker
-        # tracker = DeepSORTTracker(max_age=100, min_hits=3, iou_threshold=0.7, reid_threshold=0.2)
-        tracker = SORTTracker(max_age=100, min_hits=3, iou_threshold=0.7)
+        tracker = DeepSORTTracker(max_age=100, min_hits=3, iou_threshold=0.7, reid_threshold=0.2)
+        # tracker = SORTTracker(max_age=100, min_hits=3, iou_threshold=0.7)
         logger.info("Main", "Tracker initialized.")
 
+        # --- MODIFICATION START ---
         # Initialize VideoMaker for output
-        maker = VideoMaker(cap, "deepsort_tracking_output", width=1280, height=720, fps=20, append_date=False)
+        # Pass the underlying cap object from the stream_reader
+        maker = VideoMaker(stream_reader.cap, "deepsort_tracking_output", width=1280, height=720, fps=20,
+                           append_date=False)
         logger.info("Main", f"VideoMaker initialized for output: {maker.generated_filename()}")
 
-        # Get video properties
-        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
+        # Get video properties from the stream_reader instance
+        frame_width = stream_reader.width
+        frame_height = stream_reader.height
+        fps = stream_reader.fps
         logger.info("Main", f"Video Resolution: {frame_width}x{frame_height}, FPS: {fps}")
+        # --- MODIFICATION END ---
 
         frame_idx = 0
         start_time = time.time()
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                logger.info("Main", "End of video stream or failed to read frame.")
-                break
+        # --- MODIFICATION START ---
+        # Loop while the stream is connected
+        while stream_reader.is_connected():
+            # Read frame from the StreamReader
+            frame = stream_reader.read_frame()
+
+            # If frame is None, it might be due to FPS limiting or end of stream
+            if frame is None:
+                continue  # Skip this loop iteration
+            # --- MODIFICATION END ---
 
             frame_idx += 1
+            # The pipeline requires a 640x640 frame
             frame_for_pipeline = cv2.resize(frame, (640, 640))
             raw_pipeline_results = pipeline.process_batched_images([frame_for_pipeline], 1.0)
 
@@ -85,6 +100,7 @@ if __name__ == "__main__":
             tracked_objects = tracker.update(current_frame_skeletons)
 
             display_frame = frame.copy()
+            # The original shape for drawing is now the StreamReader's output size
             original_shape = (frame_height, frame_width)
 
             epsilon = 15.0
@@ -113,6 +129,7 @@ if __name__ == "__main__":
             current_fps = frame_idx / elapsed_time
             cv2.putText(display_frame, f"FPS: {current_fps:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
+            # This resize is now redundant if StreamReader is set to 1280x720, but it's harmless.
             display_frame = cv2.resize(display_frame, (1280, 720))
             cv2.imshow("Tracking Demo", display_frame)
 
@@ -123,14 +140,18 @@ if __name__ == "__main__":
                 logger.info("Main", "Quit key 'q' pressed. Exiting.")
                 break
 
+        logger.info("Main", "End of video stream.")
+
     except Exception as e:
         logger.error_trace("Main", f"An error occurred: {e}")
 
     finally:
         # Release resources
-        if cap:
-            cap.release()
-            logger.info("Main", "Video stream released.")
+        # --- MODIFICATION START ---
+        if stream_reader:
+            stream_reader.close_camera_stream()
+            logger.info("Main", "StreamReader released.")
+        # --- MODIFICATION END ---
 
         if pipeline:
             pipeline.destroy_pipeline()
