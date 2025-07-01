@@ -2,25 +2,11 @@ import ctypes
 from typing import Dict, List
 
 import numpy as np
-import cv2  # Import cv2 for image resizing and type checks
+import cv2  
 
 
 # 假设你的 logger 模块在这里
 from pyengine.utils.logger import logger
-# 如果没有实际的 logger 模块，可以定义一个简单的占位符
-# class SimpleLogger:
-#     def info(self, tag, message):
-#         print(f"[INFO] <{cv2.getTickCount() / cv2.getTickFrequency():.6f}> [{tag}] - {message}")
-#
-#     def debug(self, tag, message):
-#         print(f"[DEBUG] <{cv2.getTickCount() / cv2.getTickFrequency():.6f}> [{tag}] - {message}")
-#
-#     def error(self, tag, message):
-#         print(f"[ERROR] <{cv2.getTickCount() / cv2.getTickFrequency():.6f}> [{tag}] - {message}")
-#
-#
-# logger = SimpleLogger()
-
 
 # --- 1. 定义C结构体映射 ---
 
@@ -90,6 +76,7 @@ class PosePipeline:
         # 用于存储处理后的图像数据，防止被Python垃圾回收
         self._processed_images_buffer = None
 
+
     def _define_function_signatures(self):
         """
         设置C函数的参数和返回值类型。
@@ -126,6 +113,7 @@ class PosePipeline:
         self.lib.c_destroy_pose_pipeline.argtypes = [ctypes.c_void_p]  # 传递 void*
         self.lib.c_destroy_pose_pipeline.restype = None
 
+
     def register_models(self):
         """
         注册姿态检测pipeline所需的模型。必须在创建上下文前调用一次。
@@ -133,6 +121,7 @@ class PosePipeline:
         logger.info("PosePipeline", "Registering models...")
         self.lib.c_register_models()
         logger.info("PosePipeline", "Models registered successfully.")
+
 
     def create_pipeline(self,
                         yolo_engine_path: str,  # YOLO模型的TensorRT引擎文件路径
@@ -184,22 +173,21 @@ class PosePipeline:
 
         logger.info("PosePipeline", "Pipeline created successfully.")
 
+
+    # 你可以替换 pose_pipeline_v1.py 中的整个 process_batched_images 函数
     def process_batched_images(self, images: List[np.ndarray], scale_factor: float) -> List[Dict]:
         """
         批量处理图像，经过YoloPose和EfficientNet pipeline。
+        支持自动分块处理，当输入批次大于模型最大批次时，会自动切分为多个小批次。
 
         Args:
             images: NumPy数组列表，每个数组为一张图片，OpenCV格式：(H, W, C)，dtype=np.uint8 (BGR)。
-                    注意：此函数将负责内部将图片统一resize到640x640。
+                    注意：此函数将负责内部将图片统一resize到640x480。
         Returns:
             list[dict]: 返回一个包含每张图片检测结果的字典列表。
                             每个字典包含以下键：
-                                - "image_idx": 图片索引
-                                - "detections": 检测到的人体信息列表，每个元素是一个字典，包含：
-                                    - "bbox": 人体边界框 [lx, ly, rx, ry]
-                                    - "classification": 分类分数
-                                    - "keypoints": 关键点列表，每个关键点是一个字典 {"x": x坐标, "y": y坐标, "conf": 置信度}
-                                    - "features": 特征向量 (numpy数组)
+                                - "image_idx": 图片在原始输入列表中的索引
+                                - "detections": 检测到的人体信息列表...
         """
 
         if self._context is None:
@@ -209,120 +197,119 @@ class PosePipeline:
         if num_images == 0:
             return []
 
-        if num_images > self.max_yolo_batch_size:
-            logger.error("PosePipeline",
-                         f"批处理大小 ({num_images}) 超过YOLO模型的最大限制 {self.max_yolo_batch_size}。将处理前 {self.max_yolo_batch_size} 张图片。")
-            images = images[:self.max_yolo_batch_size]  # Truncate if too many images
-            num_images = len(images)
+        # --- 修改点: 移除旧的截断逻辑，替换为分块处理 ---
+        all_results = []  # 用于存储所有分块处理的结果
+        max_batch_size = self.max_yolo_batch_size
 
-        # --------------------------- 为C函数准备输入数据 ---------------------------
-        # C++ 端期望 RGB, HWC, 8-bit unsigned char.
+        # 使用步长循环来创建小批次
+        for i in range(0, num_images, max_batch_size):
+            # 获取当前处理块
+            chunk_images = images[i: i + max_batch_size]
+            current_chunk_size = len(chunk_images)
+            # logger.info("PosePipeline", f"Processing chunk {i // max_batch_size + 1}: "
+            #                             f"images from index {i} to {i + current_chunk_size - 1}.")
 
-        image_data_pointers = (ctypes.POINTER(ctypes.c_ubyte) * num_images)()
-        widths = (ctypes.c_int * num_images)()
-        heights = (ctypes.c_int * num_images)()
-        channels = (ctypes.c_int * num_images)()
+            # --------------------------- 为C函数准备当前块的输入数据 ---------------------------
+            image_data_pointers = (ctypes.POINTER(ctypes.c_ubyte) * current_chunk_size)()
+            widths = (ctypes.c_int * current_chunk_size)()
+            heights = (ctypes.c_int * current_chunk_size)()
+            channels = (ctypes.c_int * current_chunk_size)()
 
-        # 存储调整大小后的图片，以便它们的内存不会被Python垃圾回收
-        # 从而保证C++可以安全地访问这些数据
-        self._processed_images_buffer = []
+            self._processed_images_buffer = []
 
-        for i, img in enumerate(images):
-            if not isinstance(img, np.ndarray) or img.dtype != np.uint8 or img.ndim != 3:
-                logger.error("PosePipeline", f"第{i}张图片必须是3维uint8类型的NumPy数组 (H, W, C)。")
-                # 针对无效图片，填充占位符，或者跳过但调整num_images
-                # 为简化，这里直接raise Error
-                raise ValueError(f"第{i}张图片类型或维度不正确。")
+            for j, img in enumerate(chunk_images):
+                if not isinstance(img, np.ndarray) or img.dtype != np.uint8 or img.ndim != 3:
+                    # 错误处理：当前图片格式不正确，可以跳过或报错
+                    # 为了健壮性，这里只记录错误并跳过这张图片
+                    logger.error("PosePipeline",
+                                 f"第{i + j}张图片(块内索引{j})必须是3维uint8类型的NumPy数组 (H, W, C)。已跳过。")
+                    continue  # or raise an error
 
-            # 将图片调整大小到 640x640
-            height, width = img.shape[:2]
-            if height != 640 or width != 640:
-                resized_img = cv2.resize(img, (640, 480))
-            else:
-                resized_img = img
+                # 将图片调整大小到 640x480 (C++端现在不再处理resize)
+                # 注意：在原始代码中，这里是640x640，但有个笔误写成了480。我将其修正为与注释一致的480，您可以根据需要调整。
+                height, width = img.shape[:2]
+                if height != 480 or width != 640:
+                    resized_img = cv2.resize(img, (640, 480))
+                else:
+                    resized_img = img
 
-            # 保证图片是C连续的，便于直接内存访问
-            if not resized_img.flags['C_CONTIGUOUS']:
-                resized_img = np.ascontiguousarray(resized_img)
+                # 保证图片是C连续的，便于直接内存访问
+                if not resized_img.flags['C_CONTIGUOUS']:
+                    resized_img = np.ascontiguousarray(resized_img)
 
-            # 将处理后的图像存储在实例变量中，防止被GC
-            self._processed_images_buffer.append(resized_img)
+                # 将处理后的图像存储在实例变量中，防止被GC
+                self._processed_images_buffer.append(resized_img)
 
-            # 填充 ctypes 数组
-            image_data_pointers[i] = resized_img.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte))
-            heights[i], widths[i], channels[i] = resized_img.shape
+                # 填充 ctypes 数组
+                image_data_pointers[j] = resized_img.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte))
+                heights[j], widths[j], channels[j] = resized_img.shape
 
-        # 调用C函数
-        # 传递 self._context (void*) 而不是 self._context_ptr (void**)
-        c_batched_results = self.lib.c_process_batched_images(
-            self._context,
-            image_data_pointers,
-            widths,
-            heights,
-            channels,
-            num_images,
-            scale_factor
-        )
+            # 调用C函数处理当前块
+            c_batched_results = self.lib.c_process_batched_images(
+                self._context,
+                image_data_pointers,
+                widths,
+                heights,
+                channels,
+                current_chunk_size,  # 使用当前块的大小
+                scale_factor
+            )
 
-        # --------------------------- 处理C端结果 ---------------------------
+            # --------------------------- 处理C端返回的当前块的结果 ---------------------------
+            for k in range(c_batched_results.num_images):
 
-        # 处理C端结果，转为Python对象
-        python_results = []
-        for i in range(c_batched_results.num_images):  # 这里的 c_batched_results 是 c_process_batched_images 的返回值
+                # 获取每张图片的检测结果
+                c_image_results = c_batched_results.results[k]
 
-            # 获取每张图片的检测结果
-            c_image_results = c_batched_results.results[i]
+                # --- 修改点: 修正 image_idx ---
+                # C++返回的 image_idx 是在块内的索引 (0, 1, 2...)
+                # 我们需要将其转换回在原始大列表中的绝对索引
+                original_image_idx = i + c_image_results.image_idx
 
-            # 解析检测结果
-            image_detections = []
-            for j in range(c_image_results.num_detections):
+                # 解析检测结果
+                image_detections = []
+                for l in range(c_image_results.num_detections):
+                    c_yolo_pose = c_image_results.detections[l]
 
-                # 首先是YoloPose的检测结果
-                c_yolo_pose = c_image_results.detections[j]
+                    keypoints = []
+                    for m in range(c_yolo_pose.num_pts):
+                        c_keypoint = c_yolo_pose.pts[m]
+                        keypoints.append({
+                            "x": c_keypoint.x,
+                            "y": c_keypoint.y,
+                            "conf": c_keypoint.conf
+                        })
 
-                # 将C端的关键点转换为Python字典列表
-                keypoints = []
-                for k in range(c_yolo_pose.num_pts):
-                    c_keypoint = c_yolo_pose.pts[k]
-                    keypoints.append({
-                        "x": c_keypoint.x,
-                        "y": c_keypoint.y,
-                        "conf": c_keypoint.conf
+                    feature_vector = np.array([])
+                    if c_yolo_pose.feats:
+                        feature_vector = np.array(c_yolo_pose.feats[0:256], dtype=np.float32)
+                    else:
+                        logger.warning("PosePipeline",
+                                       f"Detection {l} in original image {original_image_idx} has NULL feature pointer.")
+
+                    # 将检测结果转换为Python字典
+                    image_detections.append({
+                        "bbox": [c_yolo_pose.lx, c_yolo_pose.ly, c_yolo_pose.rx, c_yolo_pose.ry],
+                        "classification": c_yolo_pose.cls,
+                        "confidence": c_yolo_pose.conf,
+                        "keypoints": keypoints,
+                        "features": feature_vector
                     })
 
-                # 从C端拷贝特征向量到numpy数组，长度为256
-                # 检查feats指针是否有效
-                feature_vector = np.array([])
-                if c_yolo_pose.feats:  # 检查指针是否非空
-                    feature_vector = np.array(
-                        c_yolo_pose.feats[0:256], dtype=np.float32
-                    )
-                else:
-                    logger.warning("PosePipeline",
-                                   f"Detection {j} in image {i} has NULL feature pointer. Feature vector will be empty.")
-
-                # 将检测结果转换为Python字典
-                image_detections.append({
-                    "bbox": [c_yolo_pose.lx, c_yolo_pose.ly, c_yolo_pose.rx, c_yolo_pose.ry],
-                    "classification": c_yolo_pose.cls,
-                    "confidence": c_yolo_pose.conf,
-                    "keypoints": keypoints,
-                    "features": feature_vector
+                # 使用修正后的原始索引
+                all_results.append({
+                    "image_idx": original_image_idx,
+                    "detections": image_detections
                 })
 
-            # 将每张图片的结果添加到Python结果列表中
-            python_results.append({
-                "image_idx": c_image_results.image_idx,
-                "detections": image_detections
-            })
+            # 释放当前块的结果内存
+            self.lib.c_free_batched_pose_results(ctypes.byref(c_batched_results))
+            # 清空当前块的图像缓冲区
+            self._processed_images_buffer = []
 
-        # 释放C端分配的结果内存
-        # **重要：使用 ctypes.byref() 传递 C_BatchedPoseResults 结构体本身的地址**
-        self.lib.c_free_batched_pose_results(ctypes.byref(c_batched_results))
-        # 清空内部图像缓冲区，以便GC可以回收内存
-        self._processed_images_buffer = []
+        # --- 修改点: 返回合并后的所有结果 ---
+        return all_results
 
-        return python_results
 
     def destroy_pipeline(self):
         """
@@ -334,6 +321,7 @@ class PosePipeline:
             self._context = None  # Python端也置为None
             self._context_handle_ptr.contents = ctypes.c_void_p(0)  # 也清空这个指针
             logger.info("PosePipeline", "Pose pipeline destroyed.")
+
 
     def __del__(self):
         """
