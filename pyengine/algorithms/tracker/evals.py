@@ -8,7 +8,7 @@ from pyengine.algorithms.tracker.tracker import UnifiedTrack
 from pyengine.inference.c_pipeline.pose_pipeline_v1 import PosePipeline
 from pyengine.inference.unified_structs.pipeline_converter import convert_pipeline_v1_to_skeletons
 from pyengine.utils.logger import logger
-from pyengine.visualization.inference_drawer import GenericInferenceDrawer
+from pyengine.visualization.generic_inference_drawer import GenericInferenceDrawer
 from pyengine.io.streamer.video_maker import VideoMaker
 
 if __name__ == "__main__":

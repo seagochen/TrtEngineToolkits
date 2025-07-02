@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from typing import List, Dict, Tuple, Optional, Union
+from typing import List, Dict, Tuple, Optional, Union, Any
 
 from pyengine.utils.logger import logger
 from pyengine.inference.unified_structs.inference_results import Rect, ObjectDetection, Point, Skeleton
@@ -38,8 +38,7 @@ class GenericInferenceDrawer:
     @staticmethod
     def _scale_coordinates(coords: Union[Rect, Point, Tuple[float, float]],
                            original_shape: Tuple[int, int],
-                           pipeline_input_shape: Tuple[int, int] = (640, 640)) -> Rect | Point | tuple[int, int] | \
-                                                                                  tuple[float, float]:
+                           pipeline_input_shape: Tuple[int, int] = (640, 640)) -> Any:
         """
         根据图像从 pipeline 输入尺寸缩放到原始尺寸的比例调整坐标。
         Args:
