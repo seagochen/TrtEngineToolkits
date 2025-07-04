@@ -30,7 +30,7 @@ class Pose(IntEnum):
 
 
 @dataclass
-class ExtendedSkeleton(Skeleton):
+class ExpandedSkeleton(Skeleton):
     # 用于标记姿态
     pose: Pose = Pose.Unknown
 
@@ -57,7 +57,7 @@ class ExtendedSkeleton(Skeleton):
             self.pose = Pose.from_value(self.pose)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ExtendedSkeleton":
+    def from_dict(cls, data: dict[str, Any]) -> "ExpandedSkeleton":
         """
         从字典创建实例。
         这个方法是必需的，以确保反序列化逻辑链的完整性。

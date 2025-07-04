@@ -1,6 +1,6 @@
 from pyengine.algorithms.estimation import is_valid_point, compute_modulus, analyze_front_side_back_face, \
     analyze_single_eye_face, analyze_back_face_ears_only
-from pyengine.inference.unified_structs.auxiliary_structs import FaceDirection, ExtendedSkeleton, Pose
+from pyengine.inference.unified_structs.auxiliary_structs import FaceDirection, ExpandedSkeleton, Pose
 from pyengine.inference.unified_structs.inference_results import Skeleton
 
 
@@ -50,7 +50,7 @@ def calculate_bbox_aspect_ratio(skeleton: Skeleton) -> Pose:
         return Pose.Sitting  # 坐/下蹲
 
 
-def calculate_direction_and_posture(skeleton: Skeleton) -> ExtendedSkeleton:
+def calculate_direction_and_posture(skeleton: Skeleton) -> ExpandedSkeleton:
     """
     根据 pose_extend 中的面部关键点信息分析面部朝向，返回 FacialDirection 对象。
     """
@@ -91,7 +91,7 @@ def calculate_direction_and_posture(skeleton: Skeleton) -> ExtendedSkeleton:
             analyze_back_face_ears_only(left_ear, right_ear)
 
     # 开始将Skeleton升级为ExtendedSkeleton
-    extended_skeleton = ExtendedSkeleton(
+    extended_skeleton = ExpandedSkeleton(
         # 复制 Skeleton 的所有字段
         classification=skeleton.classification,
         confidence=skeleton.confidence,
