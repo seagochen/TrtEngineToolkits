@@ -32,10 +32,10 @@ class Pose(IntEnum):
 @dataclass
 class ExpandedSkeleton(Skeleton):
     # 用于标记姿态
-    pose: Pose = Pose.Unknown
+    posture_type: Pose = Pose.Unknown
 
-    # (修改) 修正拼写错误 directionn_type -> direction
-    direction: FaceDirection = FaceDirection.Unknown
+    # 用于记录面部朝向
+    direction_type: FaceDirection = FaceDirection.Unknown
 
     # 关于面部朝向的其他辅助信息，例如角度，向量，模长
     direction_angle: float = 0.0
@@ -51,10 +51,10 @@ class ExpandedSkeleton(Skeleton):
             super().__post_init__()
 
         # (修改) 使用修正后的字段名 self.direction
-        if not isinstance(self.direction, FaceDirection):
-            self.direction = FaceDirection.from_value(self.direction)
-        if not isinstance(self.pose, Pose):
-            self.pose = Pose.from_value(self.pose)
+        if not isinstance(self.direction_type, FaceDirection):
+            self.direction_type = FaceDirection.from_value(self.direction_type)
+        if not isinstance(self.posture_type, Pose):
+            self.posture_type = Pose.from_value(self.posture_type)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ExpandedSkeleton":

@@ -101,10 +101,10 @@ def calculate_direction_and_posture(skeleton: Skeleton) -> ExpandedSkeleton:
         points=skeleton.points,
 
         # 姿态检测, 不更新任何姿态相关字段
-        pose=calculate_bbox_aspect_ratio(skeleton),
+        posture_type=calculate_bbox_aspect_ratio(skeleton),
 
         # 面部朝向
-        direction=orientation,
+        direction_type=orientation,
         direction_angle=angle,
         direction_modulus=modulus,
         direction_vector=(vec_x, vec_y),
