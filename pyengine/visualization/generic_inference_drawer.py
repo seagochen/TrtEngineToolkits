@@ -96,7 +96,7 @@ class GenericInferenceDrawer:
         bbox_color = self._get_classification_color(detection.classification)
 
         # 构建标签文本
-        class_label_display = str(detection.classification)  # 默认显示分类ID
+        # class_label_display = str(detection.classification)  # 默认显示分类ID
         if label_names and 0 <= detection.classification < len(label_names):
             class_label_display = label_names[detection.classification]  # 如果有标签名，显示名称
         else:
