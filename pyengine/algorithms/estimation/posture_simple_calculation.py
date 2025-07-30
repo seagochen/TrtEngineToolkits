@@ -4,7 +4,7 @@ from pyengine.inference.unified_structs.auxiliary_structs import FaceDirection, 
 from pyengine.inference.unified_structs.inference_results import Skeleton
 
 
-def calculate_bbox_aspect_ratio(skeleton: Skeleton) -> Pose:
+def calculate_bbox_aspect_ratio(skeleton: Skeleton, default_confidence=0.5) -> Pose:
     """
     根据检测框的长宽比判断人体姿态。
     新的编码规则建议:
@@ -34,7 +34,8 @@ def calculate_bbox_aspect_ratio(skeleton: Skeleton) -> Pose:
     # 16: Right Ankle
     left_ankle = skeleton.points[15]
     right_ankle = skeleton.points[16]
-    if not is_valid_point(left_ankle) or not is_valid_point(right_ankle):
+    if not is_valid_point(left_ankle, default_confidence) or \
+            not is_valid_point(right_ankle, default_confidence):
         return Pose.Unknown
 
     # 计算bbox的长宽比，这种方式能比单纯的基于关键点的坐标更稳定。

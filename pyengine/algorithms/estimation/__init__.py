@@ -6,7 +6,7 @@ from pyengine.inference.unified_structs.auxiliary_structs import Pose, FaceDirec
 from pyengine.inference.unified_structs.inference_results import Skeleton, Point, Rect
 
 
-def is_valid_point(pt: Point, default_confidence:float = 5.0) -> bool:
+def is_valid_point(pt: Point, default_confidence:float = 0.5) -> bool:
     """判断关键点是否有效：置信度 > default_confidence 且坐标均大于 0"""
     return pt.confidence > default_confidence and pt.x > 0 and pt.y > 0
 

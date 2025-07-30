@@ -34,6 +34,18 @@ class MQTTClient:
         self.client.on_disconnect = self.on_disconnect
         self.client.on_message = self.on_message
 
+    # --- 新增: 设置遗嘱消息的方法 ---
+    def set_will(self, topic: str, payload: bytes, qos: int = 1, retain: bool = True):
+        """
+        设置客户端的遗嘱消息 (Last Will and Testament).
+        这必须在 connect() 之前调用。
+        """
+        try:
+            self.client.will_set(topic, payload, qos, retain)
+            logger.info("MQTTClient", f"Will set on topic '{topic}'")
+        except Exception as e:
+            logger.error_trace("MQTTClient", f"Failed to set will: {str(e)}")
+
     def set_message_callback(self, callback: Callable[[str, bytes], None]):
         """设置接收消息的回调函数"""
         self.message_callback = callback
@@ -75,13 +87,26 @@ class MQTTClient:
             self.client.loop_stop()
             self.client.disconnect()
 
-    def publish(self, topic: str, payload: bytes) -> bool:
+    # def publish(self, topic: str, payload: bytes) -> bool:
+    #     """发布消息"""
+    #     if not self.is_connected:
+    #         logger.warning("MQTTClient", "Client not connected. Cannot publish message.")
+    #         return False
+    #     try:
+    #         self.client.publish(topic, payload)
+    #         return True
+    #     except Exception as e:
+    #         logger.error_trace("MQTTClient", f"Failed to publish message to {topic} - {str(e)}")
+    #         return False
+
+    def publish(self, topic: str, payload: bytes, qos: int = 1, retain: bool = False) -> bool:
         """发布消息"""
         if not self.is_connected:
             logger.warning("MQTTClient", "Client not connected. Cannot publish message.")
             return False
         try:
-            self.client.publish(topic, payload)
+            # Pass the qos and retain arguments to the underlying client
+            self.client.publish(topic, payload, qos=qos, retain=retain)
             return True
         except Exception as e:
             logger.error_trace("MQTTClient", f"Failed to publish message to {topic} - {str(e)}")
