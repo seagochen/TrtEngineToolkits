@@ -80,3 +80,6 @@ protobufs/video_frame_pb2.py
 
 # Ignore the generated __pycache__ folders
 __pycache__/
+
+# Ignore the tar.gz files
+*.tar.gz
