@@ -34,12 +34,10 @@ class InferenceResultSenderPlugin(MqttPlugin):
 
     def send(self,
              topic: str,
-             frame_number: int,
              frame_width: int,
              frame_height: int,
              frame_channels: int,
              frame_raw_data: np.ndarray,
-             publish_by: str,
              inference_result: List[Skeleton]) -> bool:  # ← 单层 List[Skeleton]
         """
         发布一条 InferenceResult(proto 字段：frame_number/width/height/channels/frame_raw_data/publish_by/inference_results)。
@@ -49,11 +47,9 @@ class InferenceResultSenderPlugin(MqttPlugin):
             return False
 
         # --- 基本校验 ---
-        if not isinstance(frame_number, (int, np.integer)):
-            return False
-        if not (isinstance(frame_width, (int, np.integer)) and isinstance(frame_height, (int, np.integer)) and isinstance(frame_channels, (int, np.integer))):
-            return False
-        if not isinstance(publish_by, str):
+        if not (isinstance(frame_width, (int, np.integer)) and \
+                isinstance(frame_height, (int, np.integer)) and \
+                isinstance(frame_channels, (int, np.integer))):
             return False
         if not isinstance(frame_raw_data, np.ndarray) or frame_raw_data.dtype != np.uint8:
             return False
@@ -81,12 +77,10 @@ class InferenceResultSenderPlugin(MqttPlugin):
 
         # --- 组装并发布 ---
         msg = self._InferenceResult()
-        msg.frame_number = int(frame_number)
         msg.frame_width = int(frame_width)
         msg.frame_height = int(frame_height)
         msg.frame_channels = int(frame_channels)
         msg.frame_raw_data = raw_bytes
-        msg.publish_by = publish_by
         msg.inference_results = results_bytes
 
         payload = msg.SerializeToString()

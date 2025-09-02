@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 
 from pyengine.visualization.color_utils import hex_to_bgr
+# from color_utils import hex_to_bgr
 
 
 def fill_area(image: np.ndarray, area: list, color: str, transparency: float) -> np.ndarray:
@@ -46,25 +47,158 @@ def fill_area(image: np.ndarray, area: list, color: str, transparency: float) ->
     return image
 
 
+def fill_grid_area(
+    image: np.ndarray,
+    area: list,
+    color: str,
+    transparency: float,
+    grid_rows: int,
+    grid_cols: int,
+    perspective: bool = True,
+    grid_line_color: str = "#FFFFFF"
+) -> np.ndarray:
+    """
+    Fills a polygonal area with a specified color and transparency, and overlays a grid.
+    The grid can be drawn with or without a perspective effect.
+
+    Parameters:
+      image (np.ndarray): The image on which to draw (BGR format).
+      area (list): A list of (x, y) coordinates defining the polygon.
+      color (str): Fill color as a hex string (e.g., "#FF00AA").
+      transparency (float): Transparency level (0 to 1).
+      grid_rows (int): Number of rows in the grid.
+      grid_cols (int): Number of columns in the grid.
+      perspective (bool): If True, applies a perspective transform to the grid.
+                           Requires the 'area' to have exactly 4 points.
+      grid_line_color (str): Color of the grid lines as a hex string.
+
+    Returns:
+      np.ndarray: The image with the filled and gridded area.
+    """
+    # First, fill the area with the specified color and transparency.
+    # The fill_area function already handles point validation and making the image writable.
+    filled_image = fill_area(image, area, color, transparency)
+
+    # Prepare for drawing the grid
+    pts = np.array(area, dtype=np.int32)
+    grid_bgr_color = hex_to_bgr(grid_line_color)
+    
+    # Create a separate layer for the grid
+    grid_overlay = np.zeros_like(filled_image, dtype=np.uint8)
+
+    if perspective:
+        if len(area) != 4:
+            print("Perspective grid requires exactly 4 points for the area. Aborting grid drawing.")
+            return filled_image
+
+        # Define a source rectangle (e.g., 100x100) to map the grid from
+        src_rect_size = 100
+        src_pts = np.float32([[0, 0], [src_rect_size, 0], [src_rect_size, src_rect_size], [0, src_rect_size]])
+        dst_pts = np.float32(area)
+        
+        # Get the perspective transformation matrix
+        matrix = cv2.getPerspectiveTransform(src_pts, dst_pts)
+
+        # Draw rows
+        for i in range(1, grid_rows):
+            y = i * src_rect_size / grid_rows
+            p1_src = np.float32([[[0, y]]])
+            p2_src = np.float32([[[src_rect_size, y]]])
+            p1_dst = cv2.perspectiveTransform(p1_src, matrix)[0][0]
+            p2_dst = cv2.perspectiveTransform(p2_src, matrix)[0][0]
+            cv2.line(grid_overlay, tuple(p1_dst.astype(int)), tuple(p2_dst.astype(int)), grid_bgr_color, 1)
+
+        # Draw columns
+        for i in range(1, grid_cols):
+            x = i * src_rect_size / grid_cols
+            p1_src = np.float32([[[x, 0]]])
+            p2_src = np.float32([[[x, src_rect_size]]])
+            p1_dst = cv2.perspectiveTransform(p1_src, matrix)[0][0]
+            p2_dst = cv2.perspectiveTransform(p2_src, matrix)[0][0]
+            cv2.line(grid_overlay, tuple(p1_dst.astype(int)), tuple(p2_dst.astype(int)), grid_bgr_color, 1)
+
+    else: # Non-perspective grid
+        x, y, w, h = cv2.boundingRect(pts)
+        
+        # Draw rows
+        for i in range(1, grid_rows):
+            line_y = int(y + (i * h / grid_rows))
+            cv2.line(grid_overlay, (x, line_y), (x + w, line_y), grid_bgr_color, 1)
+
+        # Draw columns
+        for i in range(1, grid_cols):
+            line_x = int(x + (i * w / grid_cols))
+            cv2.line(grid_overlay, (line_x, y), (line_x, y + h), grid_bgr_color, 1)
+            
+    # Create a mask to ensure the grid is only drawn inside the polygon
+    mask = np.zeros(filled_image.shape[:2], dtype=np.uint8)
+    cv2.fillPoly(mask, [pts], 255)
+    
+    # Clip the grid overlay to the mask
+    clipped_grid = cv2.bitwise_and(grid_overlay, grid_overlay, mask=mask)
+    
+    # Add the clipped grid to the main image
+    final_image = cv2.add(filled_image, clipped_grid)
+
+    return final_image
+
+
 # Example usage:
 if __name__ == '__main__':
 
-    def test():
+    def test_fill():
         # Load your image using OpenCV (ensure the path is correct)
         image = cv2.imread("/opt/images/apples.png")
+        if image is None:
+            print("Error: Could not load image for test_fill.")
+            return
 
         # Define the area as a list of (x, y) points.
         area = [(50, 50), (150, 50), (150, 150), (50, 150), (50, 50)]
-        area_color = "#000000"
-        transparency = 0.3  # 0 is fully transparent, 1 is fully opaque
+        area_color = "#0000FF" # Red
+        transparency = 0.4
 
         # Fill the alert area on the image.
-        filled_image = fill_area(image, area, area_color, transparency)
+        filled_image = fill_area(image.copy(), area, area_color, transparency)
 
         # Display or save the resulting image.
         cv2.imshow("Filled Image", filled_image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
-    # Run test
-    test()
+    def test_grid():
+        # Load your image using OpenCV
+        image = cv2.imread("/opt/images/apples.png")
+        if image is None:
+            print("Error: Could not load image for test_grid.")
+            return
+
+        # Define a quadrilateral area for the grid
+        # Points: Top-left, Top-right, Bottom-right, Bottom-left
+        grid_area = [(200, 100), (450, 120), (500, 300), (150, 250)]
+        grid_color = "#00FF00"  # Green
+        transparency = 0.5
+        rows = 5
+        cols = 5
+
+        # --- Test 1: Grid with perspective ---
+        perspective_image = fill_grid_area(
+            image.copy(), grid_area, grid_color, transparency,
+            grid_rows=rows, grid_cols=cols, perspective=True
+        )
+
+        # --- Test 2: Grid without perspective (uniform) ---
+        non_perspective_image = fill_grid_area(
+            image.copy(), grid_area, grid_color, transparency,
+            grid_rows=rows, grid_cols=cols, perspective=False
+        )
+        
+        # Display the results
+        cv2.imshow("Perspective Grid", perspective_image)
+        cv2.imshow("Non-Perspective Grid", non_perspective_image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    # Run tests
+    # test_fill()
+    test_grid()

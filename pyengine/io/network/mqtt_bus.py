@@ -210,13 +210,13 @@ class MqttBus:
             now_connected = self.is_connected
 
             # 拥有客户端 → 才尝试重连；外部注入时交由外部或其自身机制处理
-            if not now_connected and self._owns_client:
-                try:
-                    ok = self.client.connect(timeout=5)
-                    if not ok:
-                        logger.warning("MqttBus", "Reconnect failed.")
-                except Exception as e:
-                    logger.warning("MqttBus", f"Reconnect exception: {e}")
+            # if not now_connected and self._owns_client:
+            #     try:
+            #         ok = self.client.connect(timeout=5)
+            #         if not ok:
+            #             logger.warning("MqttBus", "Reconnect failed.")
+            #     except Exception as e:
+            #         logger.warning("MqttBus", f"Reconnect exception: {e}")
 
             # 任何来源的 False->True(包括底层 auto-reconnect)→ 统一恢复订阅 & 状态
             if now_connected and not self._was_connected:

@@ -1,22 +1,38 @@
-from typing import Tuple
+from typing import List, Tuple
 from pyengine.inference.unified_structs.inference_results import Rect, Skeleton, Point
 
 
-def scale_euler_pt(src_width: int, src_height: int, dst_width: int, dst_height: int, point: Tuple[int, int]) -> Tuple[int, int]:
+def scale_euler_pt(
+        src_width: int, src_height:
+        int, dst_width: int, dst_height: int,
+        point: Tuple[int, int]) -> Tuple[int, int]:
     scale_x = dst_width / src_width
     scale_y = dst_height / src_height
     return int(point[0] * scale_x), int(point[1] * scale_y)
 
 
-def scale_euler_rect(src_width: int, src_height: int, dst_width: int, dst_height: int, rect: Rect) -> tuple:
+def scale_euler_pts(
+    src_width: int, src_height: int,
+    dst_width: int, dst_height: int,
+    points: List[Tuple[float, float]]
+) -> List[Tuple[int, int]]:
+    """
+    将一组点从原始尺寸缩放到目标尺寸
+    
+    :param src_width: 原始宽度
+    :param src_height: 原始高度
+    :param dst_width: 目标宽度
+    :param dst_height: 目标高度
+    :param points: [(x1, y1), (x2, y2), ...]
+    :return: 缩放后的点列表
+    """
     scale_x = dst_width / src_width
     scale_y = dst_height / src_height
-    return (
-        int(rect.x1 * scale_x),
-        int(rect.y1 * scale_y),
-        int(rect.x2 * scale_x),
-        int(rect.y2 * scale_y)
-    )
+    
+    return [
+        (int(x * scale_x), int(y * scale_y))
+        for x, y in points
+    ]
 
 
 def scale_sk_pt(src_width: int, src_height: int, dst_width: int, dst_height: int, point: Point) -> Point:

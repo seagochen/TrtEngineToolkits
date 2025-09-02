@@ -128,7 +128,7 @@ class MQTTClient:
     def on_connect(self, client, userdata, flags, rc):
         """连接回调"""
         if rc == 0:
-            logger.info("MQTTClient", f"Connected to the MQTT broker at {self.host}:{self.port}")
+            logger.info("MQTTClient", f"Client [{self.client_id}] connected to the MQTT broker at {self.host}:{self.port}")
             self.is_connected = True
         else:
             logger.error("MQTTClient", f"Failed to connect: {mqtt.error_string(rc)}")
@@ -146,7 +146,7 @@ class MQTTClient:
         if rc == 0:
             logger.info("MQTTClient", "Disconnected from the MQTT broker gracefully.")
         else:
-            logger.error("MQTTClient", f"Unexpected disconnection: {mqtt.error_string(rc)}")
+            logger.error("MQTTClient", f" Client [{self.client_id}] experienced an unexpected disconnect: {mqtt.error_string(rc)}")
             # 当非正常断开时，启动重连线程
             threading.Thread(target=self._attempt_reconnect, daemon=True).start()
 
@@ -162,7 +162,7 @@ class MQTTClient:
         while attempts < self.max_reconnect_attempts and not self.is_connected:
             attempts += 1
             try:
-                logger.info("MQTTClient", f"Attempting to reconnect... (Attempt {attempts})")
+                logger.info("MQTTClient", f"Client [{self.client_id}] is attempting to reconnect... (Attempt {attempts})")
                 # reconnect() 会自动处理连接逻辑，并触发 on_connect 回调
                 self.client.reconnect()
                 # 等待 on_connect 确认
