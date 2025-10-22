@@ -10,15 +10,13 @@ class StreamReader:
     Simplified StreamReader for reading video streams/files.
 
     Usage:
-        reader = StreamReader(url, width=640, height=640, fps=30).open()
-
         with StreamReader(url).open() as reader:
            while reader.is_connected():
                frame = reader.read()
                ...
 
         or:
-
+        reader = StreamReader(url, width=640, height=640, fps=30).open()
         while reader.is_connected():
             frame = reader.read()
 
