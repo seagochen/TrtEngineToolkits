@@ -7,7 +7,6 @@ import numpy as np
 from pyengine.font import text_painter
 from pyengine.inference.unified_structs.auxiliary_structs import ExpandedSkeleton, FaceDirection
 from pyengine.inference.unified_structs.inference_results import Skeleton
-from pyengine.utils import coords_transform
 from pyengine.visualization.scheme_loader import SchemeLoader
 
 
@@ -15,84 +14,51 @@ class InferenceDrawer:
     """
     统一、模块化、可配置的推理结果绘制类。
 
-    重要说明：
-    -   本类在初始化时配置输入和输出的尺寸。
-    -   `input_size` : 你传入的 `skeletons` 数据所在的坐标系尺寸 (例如 640x640)。
-    -   `output_size`: 你要绘制到的目标 `image` 的尺寸。
-    -   如果 `input_size` 和 `output_size` 不一致，绘制时会自动进行坐标缩放。
-    -   所有公共绘制方法(如 `draw_inference`) 假定传入的 `image` 尺寸
-        必须等于初始化时配置的 `output_size`。
+    设计原则：
+    -   只负责在原图坐标系上绘制，不做任何缩放。
+    -   传入的 `skeletons` 坐标必须与 `image` 的坐标系一致。
+    -   如需缩放显示，请在绘制后使用 cv2.resize() 手动缩放。
+    -   这样设计更清晰，避免了隐式坐标转换导致的错位问题。
 
-    怎么用 (新版):
+    用法示例:
 
+    # 初始化
     drawer = InferenceDrawer(
-        scheme_loader=SchemeLoader(SCHEME_CONFIG),
-        input_size=(640, 640),      # 假设推理在 640x640 下进行
-        output_size=(1920, 1080)    # 假设要画在 1080p 的图像上
+        scheme_loader=SchemeLoader(SCHEME_CONFIG)
     )
 
-    vis = drawer.draw_inference(frame_1080p, skeletons_in_640_space, ...)
+    # 绘制（坐标系与 image 一致）
+    frame_with_results = drawer.draw_inference(frame, skeletons, ...)
 
-    # 如果输入输出尺寸一致，则不缩放 (等同于原 'pixel' 模式)
-    drawer_pixel_mode = InferenceDrawer(
-        scheme_loader=SchemeLoader(SCHEME_CONFIG),
-        input_size=(1920, 1080),
-        output_size=(1920, 1080)
-    )
-    vis = drawer_pixel_mode.draw_inference(frame_1080p, skeletons_in_1080p_space, ...)
+    # 如需缩放，手动控制
+    display_frame = cv2.resize(frame_with_results, (1024, 600))
+    cv2.imshow("Window", display_frame)
 
     """
 
     def __init__(self,
                  scheme_loader: SchemeLoader,
-                 output_size: Tuple[int, int],
                  *,
-                 input_size: Tuple[int, int] = (640, 640),
                  bbox_confidence_threshold: float = 0.5,
                  kpt_confidence_threshold: float = 0.5):
 
         self.bbox_conf_thresh = bbox_confidence_threshold
         self.kpt_conf_thresh = kpt_confidence_threshold
         self.schema = scheme_loader
-
-        # 坐标系尺寸
-        self.input_w, self.input_h = input_size
-        self.output_w, self.output_h = output_size
-
-        # 预先判断是否需要缩放
-        self.needs_scaling = (self.input_w != self.output_w or self.input_h != self.output_h)
-
         self.blink_counter = 0
 
-    # ---------- 坐标映射工具 ----------
+    # ---------- 坐标映射工具（简化版：不做缩放）----------
     def _map_point(self, x: float, y: float) -> Tuple[int, int]:
         """
-        把输入点 (x, y) 映射到配置的 output_size。
+        将浮点坐标转换为整数像素坐标（不做缩放）。
         """
-        if not self.needs_scaling:
-            return int(round(x)), int(round(y))
-        else:
-            # 按 input_size → output_size 缩放
-            p = scale_utils.scale_euler_pt(
-                src_width=self.input_w, src_height=self.input_h,
-                dst_width=self.output_w, dst_height=self.output_h,
-                point=(x, y)  # 传递 float 以保持精度
-            )
-            return int(p[0]), int(p[1])
+        return int(round(x)), int(round(y))
 
     def _map_rect(self, rect) -> Tuple[int, int, int, int]:
         """
-        把输入矩形 (rect) 映射到配置的 output_size。
+        将矩形坐标转换为整数像素坐标（不做缩放）。
         """
-        if not self.needs_scaling:
-            return int(round(rect.x1)), int(round(rect.y1)), int(round(rect.x2)), int(round(rect.y2))
-        else:
-            r = scale_utils.scale_sk_rect(
-                src_width=self.input_w, src_height=self.input_h,
-                dst_width=self.output_w, dst_height=self.output_h,
-                rect=rect
-            )
-            return int(r.x1), int(r.y1), int(r.x2), int(r.y2)
+        return int(round(rect.x1)), int(round(rect.y1)), int(round(rect.x2)), int(round(rect.y2))
 
     # ---------- 具体绘制 ----------
     def _draw_bbox(self, image: np.ndarray, skeleton: Skeleton, bbox_color: Tuple[int, int, int] = None):
@@ -192,11 +158,8 @@ class InferenceDrawer:
                        bbox_color: Tuple[int, int, int] = None,
                        highlight_classes: List[Tuple[bool, str]] = None) -> np.ndarray:
 
-        # 检查传入的图像尺寸是否与配置的 output_size 匹配
-        img_h, img_w = image.shape[:2]
+        # 直接在传入的图像上绘制（不做自动缩放）
         display_image = image.copy()
-        if img_w != self.output_w or img_h != self.output_h:
-            display_image = cv2.resize(display_image, ( self.output_w, self.output_h))
 
         for idx, skeleton in enumerate(skeletons):
             if skeleton.confidence < self.bbox_conf_thresh:
@@ -209,7 +172,7 @@ class InferenceDrawer:
             if draw_kpts:
                 self._draw_keypoints(display_image, skeleton)
             if draw_direction and isinstance(skeleton, ExpandedSkeleton):
-                self._draw_face_direction(display_image, skeleton)  # (调用 self 的方法)
+                self._draw_face_direction(display_image, skeleton)
             if label_map:
                 self._draw_label(display_image, skeleton, label_map,
                                  background_color=bbox_color,
@@ -227,11 +190,8 @@ class InferenceDrawer:
                                     skeleton: ExpandedSkeleton,
                                     bbox_color: Tuple[int, int, int] = (0, 255, 0)) -> np.ndarray:
 
-        # 检查传入的图像尺寸是否与配置的 output_size 匹配
-        img_h, img_w = image.shape[:2]
+        # 直接在传入的图像上绘制（不做自动缩放）
         display_image = image.copy()
-        if img_w != self.output_w or img_h != self.output_h:
-            display_image = cv2.resize(display_image, ( self.output_w, self.output_h))
 
         if skeleton.confidence < self.bbox_conf_thresh:
             return display_image
