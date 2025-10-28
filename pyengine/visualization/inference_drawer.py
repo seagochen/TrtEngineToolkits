@@ -1,5 +1,6 @@
 # inference_drawer.py
-from typing import List, Dict, Tuple, Literal
+from typing import List, Dict, Tuple
+
 import cv2
 import numpy as np
 
@@ -7,109 +8,62 @@ from pyengine.font import text_painter
 from pyengine.inference.unified_structs.auxiliary_structs import ExpandedSkeleton, FaceDirection
 from pyengine.inference.unified_structs.inference_results import Skeleton
 from pyengine.visualization.scheme_loader import SchemeLoader
-from pyengine.utils import scale_utils
-
-
-CoordSpace = Literal["pixel", "model"]
 
 
 class InferenceDrawer:
     """
     统一、模块化、可配置的推理结果绘制类。
 
-    重要说明：
-    - coord_space='pixel' ：输入坐标已经是像素坐标(相对于当前 image 的尺寸)，不再缩放，直接画(适合全图 merged)。
-    - coord_space='model' ：输入坐标在模型坐标系里(例如 640x640)，会按 (model_input_size -> 当前 image.shape) 缩放后绘制。
+    设计原则：
+    -   只负责在原图坐标系上绘制，不做任何缩放。
+    -   传入的 `skeletons` 坐标必须与 `image` 的坐标系一致。
+    -   如需缩放显示，请在绘制后使用 cv2.resize() 手动缩放。
+    -   这样设计更清晰，避免了隐式坐标转换导致的错位问题。
 
-    怎么用
-    1) 全图(merged，像素坐标)
+    用法示例:
 
-    app_pipeline_v2.py 里初始化 Drawer 改为(或保持默认，也 OK，因为默认就是 pixel)：
-
+    # 初始化
     drawer = InferenceDrawer(
-        scheme_loader=SchemeLoader(SCHEME_CONFIG),
-        image_width=3040, image_height=1368,
-        coord_space="pixel"  # ★ 关键
+        scheme_loader=SchemeLoader(SCHEME_CONFIG)
     )
 
+    # 绘制（坐标系与 image 一致）
+    frame_with_results = drawer.draw_inference(frame, skeletons, ...)
 
-    然后直接：
+    # 如需缩放，手动控制
+    display_frame = cv2.resize(frame_with_results, (1024, 600))
+    cv2.imshow("Window", display_frame)
 
-    vis = drawer.draw_inference(frame, merged, draw_bbox=True, draw_kpts=True, draw_links=True, draw_direction=False)
-
-
-    这会不缩放，按原坐标绘制。
-
-    2) 子图(模型坐标 640×640)
-
-    如果你想单独显示每个 640×640 的 crop 推理结果(传入的 skeleton 仍在 640 坐标)，就：
-
-    drawer_640 = InferenceDrawer(
-        scheme_loader=SchemeLoader(SCHEME_CONFIG),
-        image_width=640, image_height=640,
-        coord_space="model",           # ★ 使用模型坐标模式
-        model_input_size=(640, 640)
-    )
-
-    resized_crop = cv2.resize(crop, (640, 640))
-    img = drawer_640.draw_inference(resized_crop, sks_in_this_tile, ...)
     """
 
     def __init__(self,
                  scheme_loader: SchemeLoader,
-                 image_width: int,
-                 image_height: int,
                  *,
                  bbox_confidence_threshold: float = 0.5,
-                 kpt_confidence_threshold: float = 0.5,
-                 coord_space: CoordSpace = "pixel",
-                 model_input_size: Tuple[int, int] = (640, 640)):
+                 kpt_confidence_threshold: float = 0.5):
+
         self.bbox_conf_thresh = bbox_confidence_threshold
         self.kpt_conf_thresh = kpt_confidence_threshold
         self.schema = scheme_loader
-
-        # 仅作信息目的(不强依赖)
-        self.image_width = image_width
-        self.image_height = image_height
-
-        # ★ 新增：坐标系模式
-        self.coord_space: CoordSpace = coord_space
-        self.model_w, self.model_h = model_input_size
-
         self.blink_counter = 0
 
-    # ---------- 坐标映射工具 ----------
-    def _map_point(self, image: np.ndarray, x: float, y: float) -> Tuple[int, int]:
+    # ---------- 坐标映射工具（简化版：不做缩放）----------
+    def _map_point(self, x: float, y: float) -> Tuple[int, int]:
         """
-        把输入点 (x, y) 映射到当前 image 的像素坐标。
-        - pixel 模式：直接取整；
-        - model 模式：用模型尺寸 -> image.shape 做缩放。
+        将浮点坐标转换为整数像素坐标（不做缩放）。
         """
-        if self.coord_space == "pixel":
-            return int(round(x)), int(round(y))
-        else:
-            # 按模型尺寸 → 当前 image 尺寸缩放
-            p = scale_utils.scale_euler_pt(
-                src_width=self.model_w, src_height=self.model_h,
-                dst_width=image.shape[1], dst_height=image.shape[0],
-                point=(int(x), int(y))
-            )
-            return int(p[0]), int(p[1])
+        return int(round(x)), int(round(y))
 
-    def _map_rect(self, image: np.ndarray, rect) -> Tuple[int, int, int, int]:
-        if self.coord_space == "pixel":
-            return int(round(rect.x1)), int(round(rect.y1)), int(round(rect.x2)), int(round(rect.y2))
-        else:
-            r = scale_utils.scale_sk_rect(
-                src_width=self.model_w, src_height=self.model_h,
-                dst_width=image.shape[1], dst_height=image.shape[0],
-                rect=rect
-            )
-            return int(r.x1), int(r.y1), int(r.x2), int(r.y2)  # ← 读 dataclass 字段
+    def _map_rect(self, rect) -> Tuple[int, int, int, int]:
+        """
+        将矩形坐标转换为整数像素坐标（不做缩放）。
+        """
+        return int(round(rect.x1)), int(round(rect.y1)), int(round(rect.x2)), int(round(rect.y2))
 
     # ---------- 具体绘制 ----------
     def _draw_bbox(self, image: np.ndarray, skeleton: Skeleton, bbox_color: Tuple[int, int, int] = None):
-        x1, y1, x2, y2 = self._map_rect(image, skeleton.rect)
+        # 使用新的映射函数（不再需要 image 参数）
+        x1, y1, x2, y2 = self._map_rect(skeleton.rect)
 
         if bbox_color is None:
             bbox_colors = self.schema.bbox_colors
@@ -120,7 +74,8 @@ class InferenceDrawer:
     def _draw_keypoints(self, image: np.ndarray, skeleton: Skeleton):
         for i, point in enumerate(skeleton.points):
             if point.confidence > self.kpt_conf_thresh:
-                kx, ky = self._map_point(image, point.x, point.y)
+                # 使用新的映射函数
+                kx, ky = self._map_point(point.x, point.y)
                 kpt_schema = self.schema.kpt_color_map.get(i)
                 if kpt_schema:
                     color = kpt_schema.color
@@ -133,14 +88,17 @@ class InferenceDrawer:
                 p1 = skeleton.points[p1_idx]
                 p2 = skeleton.points[p2_idx]
                 if p1.confidence > self.kpt_conf_thresh and p2.confidence > self.kpt_conf_thresh:
-                    x1, y1 = self._map_point(image, p1.x, p1.y)
-                    x2, y2 = self._map_point(image, p2.x, p2.y)
+                    # 使用新的映射函数
+                    x1, y1 = self._map_point(p1.x, p1.y)
+                    x2, y2 = self._map_point(p2.x, p2.y)
                     cv2.line(image, (x1, y1), (x2, y2), link_schema.color, 2)
 
-    @staticmethod
-    def _draw_face_direction(image: np.ndarray, skeleton: ExpandedSkeleton):
+    # 不再是 staticmethod，因为它需要调用 self._map_point
+    def _draw_face_direction(self, image: np.ndarray, skeleton: ExpandedSkeleton):
         if skeleton.direction_type != FaceDirection.Unknown:
-            origin_x, origin_y = int(round(skeleton.direction_origin[0])), int(round(skeleton.direction_origin[1]))
+            # ★ 关键改动: 缩放原点
+            origin_x, origin_y = self._map_point(skeleton.direction_origin[0], skeleton.direction_origin[1])
+
             # 方向向量不缩放
             vec_x, vec_y = skeleton.direction_vector
             end_x = int(skeleton.direction_modulus * vec_x + origin_x)
@@ -163,7 +121,8 @@ class InferenceDrawer:
             label = f"#{skeleton.track_id} {label}"
         label = f"{label}-{skeleton.confidence:.2f}"
 
-        x1, y1 = self._map_point(image, skeleton.rect.x1, skeleton.rect.y1)
+        # 使用新的映射函数
+        x1, y1 = self._map_point(skeleton.rect.x1, skeleton.rect.y1)
 
         if background_color is None:
             bbox_colors = self.schema.bbox_colors
@@ -176,7 +135,8 @@ class InferenceDrawer:
         text_painter.draw_text(image, label, (x1, y1 - h - 5), font_scale=0.5, thickness=1)
 
     def _draw_bbox_with_highlight(self, image: np.ndarray, skeleton: ExpandedSkeleton, highlight_classname: str):
-        x1, y1, x2, y2 = self._map_rect(image, skeleton.rect)
+        # 使用新的映射函数
+        x1, y1, x2, y2 = self._map_rect(skeleton.rect)
         bbox_highlight_colors = self.schema.highlight_colors
         highlight_color = bbox_highlight_colors.get(highlight_classname, [[255, 0, 0], [255, 255, 255]])
 
@@ -197,6 +157,8 @@ class InferenceDrawer:
                        enable_track_id: bool = False,
                        bbox_color: Tuple[int, int, int] = None,
                        highlight_classes: List[Tuple[bool, str]] = None) -> np.ndarray:
+
+        # 直接在传入的图像上绘制（不做自动缩放）
         display_image = image.copy()
 
         for idx, skeleton in enumerate(skeletons):
@@ -227,8 +189,12 @@ class InferenceDrawer:
                                     image: np.ndarray,
                                     skeleton: ExpandedSkeleton,
                                     bbox_color: Tuple[int, int, int] = (0, 255, 0)) -> np.ndarray:
+
+        # 直接在传入的图像上绘制（不做自动缩放）
         display_image = image.copy()
+
         if skeleton.confidence < self.bbox_conf_thresh:
             return display_image
+
         self._draw_bbox(display_image, skeleton, bbox_color=bbox_color)
         return display_image
