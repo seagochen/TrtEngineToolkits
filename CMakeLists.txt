@@ -319,6 +319,80 @@ target_compile_options(benchmark_performance PRIVATE
         ${OpenMP_FLAGS} # 添加 OpenMP 编译选项
 )
 
+# ====================================================================
+#                 V2 Examples (仅在 BUILD_V2 时编译)
+# ====================================================================
+if(BUILD_V2)
+    message(STATUS "Building V2 examples...")
+
+    # 查找所有 example 源文件
+    file(GLOB EXAMPLE_FILES
+        "${PROJECT_SOURCE_DIR}/examples/*.c"
+        "${PROJECT_SOURCE_DIR}/examples/*.cpp"
+    )
+
+    # 为每个 example 创建可执行文件
+    foreach(example_file ${EXAMPLE_FILES})
+        # 获取文件名（不含路径和扩展名）
+        get_filename_component(example_name ${example_file} NAME_WE)
+
+        message(STATUS "  Adding example: ${example_name}")
+
+        # 创建可执行文件
+        add_executable(${example_name} ${example_file})
+
+        # 设置输出目录到 build/examples
+        set_target_properties(${example_name} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/examples"
+        )
+
+        # 添加包含目录
+        target_include_directories(${example_name} PRIVATE
+            ${CUDA_INCLUDE_DIRS}
+            ${SIMPLE_CUDA_TOOLKITS_INC}
+            ${TENSORRT_INCLUDE_DIRS}
+            "${PROJECT_SOURCE_DIR}/include"
+        )
+
+        # 链接共享库 (使用 jetson_shared)
+        target_link_libraries(${example_name} PRIVATE
+            jetson_shared
+            ${CUDA_LIBRARIES}
+            ${TENSORRT_LIBS}
+            m  # 链接数学库 (用于 sqrt, sqrtf 等函数)
+        )
+    endforeach()
+
+    # ====================================================================
+    #      V2 Cascade Test (级联推理测试程序)
+    # ====================================================================
+    message(STATUS "  Adding V2 cascade test: functional_test_v2_cascade")
+
+    add_executable(functional_test_v2_cascade
+        "${PROJECT_SOURCE_DIR}/functional_test_v2_cascade.cpp"
+    )
+
+    # 添加包含目录
+    target_include_directories(functional_test_v2_cascade PRIVATE
+        ${CUDA_INCLUDE_DIRS}
+        ${SIMPLE_CUDA_TOOLKITS_INC}
+        ${TENSORRT_INCLUDE_DIRS}
+        ${OpenCV_INCLUDE_DIRS}
+        "${PROJECT_SOURCE_DIR}/include"
+    )
+
+    # 链接库
+    target_link_libraries(functional_test_v2_cascade PRIVATE
+        jetson_shared
+        ${CUDA_LIBRARIES}
+        ${TENSORRT_LIBS}
+        ${OpenCV_LIBRARIES}
+        m  # 数学库
+    )
+
+    message(STATUS "V2 examples build configuration completed.")
+endif()
+
 # ------------------- 安装规则 -------------------
 
 # 设置安装前缀。用户可以通过 -DCMAKE_INSTALL_PREFIX=/path/to/install 覆盖

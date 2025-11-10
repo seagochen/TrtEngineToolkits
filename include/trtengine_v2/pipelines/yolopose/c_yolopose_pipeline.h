@@ -1,22 +1,26 @@
 /**
  * @file c_yolopose_pipeline.h
- * @brief V2 版本的 YOLO Pose 推理管线（纯 C 实现）
+ * @brief YOLOv8-Pose inference pipeline (Pure C implementation)
  *
- * 这是专为 v2 架构设计的 YOLO Pose 检测管线的完全重写版本，使用纯 C 实现。
- * 它消除了 C++ 依赖，提供了可以从多种语言调用的干净 C API。
+ * This is a complete rewrite of the YOLO Pose detection pipeline designed for
+ * the v2 architecture, using pure C implementation. It eliminates C++ dependencies
+ * and provides a clean C API that can be called from multiple languages.
  *
- * 与 v1 的主要区别：
- * - 纯 C 实现（接口无 C++/OpenCV 依赖）
- * - 使用 v2/core 中的 TrtEngineMultiTs
- * - 集成 c_common_ops.h 的 NMS 函数
- * - 简化的内存管理
- * - 更好的跨平台兼容性
+ * Key features:
+ * - Pure C implementation (no C++/OpenCV dependencies in interface)
+ * - Uses TrtEngineMultiTs from v2/core
+ * - Integrates with common NMS functions
+ * - Simplified memory management
+ * - Better cross-platform compatibility
+ *
+ * @author TrtEngineToolkits
+ * @date 2025-11-10
  */
 
-#ifndef TRTENGINE_V2_C_YOLOPOSE_PIPELINE_H
-#define TRTENGINE_V2_C_YOLOPOSE_PIPELINE_H
+#ifndef TRTENGINE_V2_PIPELINES_YOLOPOSE_C_YOLOPOSE_PIPELINE_H
+#define TRTENGINE_V2_PIPELINES_YOLOPOSE_C_YOLOPOSE_PIPELINE_H
 
-#include "trtengine_v2/model/c_structures.h"
+#include "trtengine_v2/pipelines/yolopose/c_yolopose_structures.h"
 #include <stddef.h>
 #include <stdbool.h>
 
@@ -216,4 +220,4 @@ const char* c_yolopose_pipeline_get_last_error(C_YoloPosePipelineContext* contex
 }
 #endif
 
-#endif // TRTENGINE_V2_C_YOLOPOSE_PIPELINE_H
+#endif // TRTENGINE_V2_PIPELINES_YOLOPOSE_C_YOLOPOSE_PIPELINE_H

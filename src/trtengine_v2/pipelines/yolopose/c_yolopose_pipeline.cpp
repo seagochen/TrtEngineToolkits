@@ -10,9 +10,9 @@
  * Date: 2025-11-10
  */
 
-#include "trtengine_v2/inference/c_yolopose_pipeline.h"
+#include "trtengine_v2/pipelines/yolopose/c_yolopose_pipeline.h"
+#include "trtengine_v2/pipelines/yolopose/c_yolopose_structures.h"
 #include "trtengine_v2/core/trt_engine_multi.h"
-#include "trtengine_v2/model/c_common_ops.h"
 #include "trtengine_v2/utils/logger.h"
 
 #include <stdlib.h>
