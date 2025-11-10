@@ -331,7 +331,7 @@ C_YoloPosePipelineContext* c_yolopose_pipeline_create(
         ctx->config.input_height,
         ctx->config.input_width
     };
-    ctx->input_tensor = new Tensor<float>(input_dims, TensorType::Device);
+    ctx->input_tensor = new Tensor<float>(TensorType::FLOAT32, input_dims);
 
     // Create output tensor
     std::vector<int> output_dims = {
@@ -339,7 +339,7 @@ C_YoloPosePipelineContext* c_yolopose_pipeline_create(
         ctx->output_features,
         ctx->output_samples
     };
-    ctx->output_tensor = new Tensor<float>(output_dims, TensorType::Device);
+    ctx->output_tensor = new Tensor<float>(TensorType::FLOAT32, output_dims);
 
     // Allocate host buffers
     int input_size = ctx->config.max_batch_size * 3 *
@@ -437,7 +437,12 @@ bool c_yolopose_infer_single(
     }
 
     // Copy to GPU
-    context->input_tensor->copyFromHost(context->host_input_buffer);
+    // Convert host buffer to vector for copyFromVector
+    int input_size = context->config.max_batch_size * 3 *
+                     context->config.input_height * context->config.input_width;
+    std::vector<float> input_vec(context->host_input_buffer,
+                                  context->host_input_buffer + input_size);
+    context->input_tensor->copyFromVector(input_vec);
 
     // Run inference
     std::vector<Tensor<float>*> inputs = {context->input_tensor};
@@ -450,7 +455,10 @@ bool c_yolopose_infer_single(
     }
 
     // Copy output back to host
-    context->output_tensor->copyToHost(context->host_output_buffer);
+    std::vector<float> output_vec;
+    context->output_tensor->copyToVector(output_vec);
+    memcpy(context->host_output_buffer, output_vec.data(),
+           output_vec.size() * sizeof(float));
 
     // Decode detections (max 300 detections)
     const size_t max_detections = 300;
