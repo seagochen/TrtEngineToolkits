@@ -1,25 +1,37 @@
 """
-C Pipeline Wrappers
+C Pipeline Wrappers (V2 Architecture)
 
-This package provides Python wrappers for the TrtEngineToolkits C API.
+This package provides Python wrappers for the TrtEngineToolkits V2 C API.
 
-V1 (Legacy):
-- PosePipelineV2: Coupled YOLOv8-Pose + EfficientNet pipeline
-- YoloPoseV2: YOLOv8-Pose wrapper (V1 API)
+Architecture:
+- Decoupled pipelines: YoloPose and EfficientNet work independently
+- Pure C API: Better cross-language compatibility
+- CUDA-accelerated: High-performance post-processing
 
-V2 (New Architecture):
+Main Classes:
 - YoloPosePipelineV2: Standalone YOLOv8-Pose pipeline
 - EfficientNetPipelineV2: Standalone EfficientNet pipeline
+
+Data Converters:
+- yolopose_to_skeletons: Convert YoloPose output to Skeleton objects
+- efficientnet_to_classifications: Convert EfficientNet output to ClassificationResult objects
+- cascade_results_to_unified: Merge cascade inference results
+
+C Structures:
 - c_structures_v2: Common C structure definitions
 """
 
-# V1 Legacy pipelines
-from .pipeline_v2 import PosePipelineV2
-from .yolopose_v2 import YoloPoseV2
-
-# V2 New architecture pipelines
+# V2 Architecture pipelines
 from .yolopose_pipeline_v2 import YoloPosePipelineV2
 from .efficientnet_pipeline_v2 import EfficientNetPipelineV2
+
+# Data converters
+from .converter_v2 import (
+    yolopose_to_skeletons,
+    efficientnet_to_classifications,
+    cascade_results_to_unified,
+    pipeline_v2_to_skeletons,  # Backward compatibility alias
+)
 
 # C structure definitions
 from .c_structures_v2 import (
@@ -35,13 +47,15 @@ from .c_structures_v2 import (
 )
 
 __all__ = [
-    # V1 Legacy
-    "PosePipelineV2",
-    "YoloPoseV2",
-
-    # V2 New architecture
+    # V2 Pipelines
     "YoloPosePipelineV2",
     "EfficientNetPipelineV2",
+
+    # Converters
+    "yolopose_to_skeletons",
+    "efficientnet_to_classifications",
+    "cascade_results_to_unified",
+    "pipeline_v2_to_skeletons",
 
     # C structures
     "C_KeyPoint",
