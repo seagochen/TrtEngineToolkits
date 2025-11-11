@@ -63,6 +63,7 @@ def calculate_bbox_aspect_ratio(skeleton: Skeleton,
         return Pose.Unknown
 
     aspect_ratio = bbox_height / bbox_width
+    print(aspect_ratio)
 
     if aspect_ratio >= default_ratio_threshold:
         return Pose.Standing
