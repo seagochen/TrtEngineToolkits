@@ -139,7 +139,9 @@ class YoloPosePipelineV2:
         config = self.lib.c_yolopose_pipeline_get_default_config()
 
         # Override with user-specified values
-        config.engine_path = self.engine_path.encode('utf-8')
+        # 保持engine_path编码后的字符串引用，防止被GC回收
+        self._engine_path_bytes = self.engine_path.encode('utf-8')
+        config.engine_path = self._engine_path_bytes
         config.input_width = self.input_width
         config.input_height = self.input_height
         config.max_batch_size = self.max_batch_size
@@ -207,6 +209,7 @@ class YoloPosePipelineV2:
             print(f"[DEBUG YoloPose.infer]   图像验证通过: shape={img.shape}, dtype={img.dtype}")
 
             # Prepare C structure
+            # CRITICAL: 保持img的引用直到C API调用完成
             print(f"[DEBUG YoloPose.infer]   准备 C_ImageInput...")
             c_image = C_ImageInput()
             c_image.data = img.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte))
@@ -225,6 +228,7 @@ class YoloPosePipelineV2:
             print(f"[DEBUG YoloPose.infer]   C_YoloPoseImageResult 初始化完成")
 
             print(f"[DEBUG YoloPose.infer]   调用 C API: c_yolopose_infer_single...")
+            # img保持在作用域内，确保C API调用时内存有效
             success = self.lib.c_yolopose_infer_single(
                 self._context,
                 ctypes.byref(c_image),
@@ -297,9 +301,16 @@ class YoloPosePipelineV2:
         if not images:
             return []
 
+        # 验证批处理大小
+        if len(images) > self.max_batch_size:
+            raise ValueError(
+                f"Batch size {len(images)} exceeds max_batch_size {self.max_batch_size}"
+            )
+
         # Validate and prepare all images
-        c_images = []
+        # CRITICAL: 保持valid_images的引用以防止numpy数组被GC回收
         valid_images = []
+        c_images = []
 
         for img_idx, img in enumerate(images):
             # Validate image
@@ -319,9 +330,10 @@ class YoloPosePipelineV2:
             if not img.flags['C_CONTIGUOUS']:
                 img = np.ascontiguousarray(img)
 
+            # CRITICAL: 先添加到valid_images以保持引用
             valid_images.append(img)
 
-            # Create C structure
+            # Create C structure - 指针指向valid_images中的数组
             c_image = C_ImageInput()
             c_image.data = img.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte))
             c_image.width = img.shape[1]
