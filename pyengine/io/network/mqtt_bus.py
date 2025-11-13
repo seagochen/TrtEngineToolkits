@@ -18,6 +18,7 @@ class _Sub:
     queue: Queue
     worker: threading.Thread
     active: bool = True
+    dropped_count: int = 0  # Track number of dropped messages due to queue full
 
 class MqttBus:
     """
@@ -113,9 +114,39 @@ class MqttBus:
     def subscribe(self, topic: str, handler: MessageHandler, qos: int = 0):
         """
         注册订阅：同一 topic 可注册多个 handler。每个 handler 拥有独立队列与 worker。
+
+        Thread-safe implementation:
+        1. Create subscription object first
+        2. Register under lock
+        3. Subscribe to broker outside lock (to avoid deadlock)
+        4. Start worker thread
         """
         q = Queue(maxsize=self.max_queue_per_sub)
 
+        # Create subscription object first (without thread)
+        sub = _Sub(topic=topic, qos=qos, handler=handler, queue=q, worker=None)
+
+        # Register subscription under lock
+        should_subscribe_broker = False
+        with self._lock:
+            self._subs.setdefault(topic, []).append(sub)
+            should_subscribe_broker = self.is_connected
+
+        # Subscribe to broker outside lock to avoid deadlock
+        if should_subscribe_broker:
+            try:
+                self.client.subscribe(topic, qos=qos)
+            except Exception as e:
+                logger.error("MqttBus", f"Failed to subscribe to broker for topic '{topic}': {e}")
+                # Remove from subscription list on failure
+                with self._lock:
+                    try:
+                        self._subs[topic].remove(sub)
+                    except (KeyError, ValueError):
+                        pass
+                raise
+
+        # Define worker function
         def _worker():
             while True:
                 try:
@@ -130,17 +161,13 @@ class MqttBus:
                 try:
                     handler(t, payload)
                 except Exception as e:
-                    logger.error_trace("MqttBus", f"handler error on {t}: {e}")
+                    logger.error_trace("MqttBus", f"Handler error on topic '{t}': {e}")
 
+        # Create and start worker thread
         w = threading.Thread(target=_worker, name=f"MqttBusSub[{topic}]", daemon=True)
-        sub = _Sub(topic=topic, qos=qos, handler=handler, queue=q, worker=w)
-        with self._lock:
-            self._subs.setdefault(topic, []).append(sub)
-
-        # 若已连接，立即向 broker 订阅一次(幂等)
-        if self.is_connected:
-            self.client.subscribe(topic, qos=qos)   # 现在 wrapper 已支持 qos
+        sub.worker = w
         w.start()
+
         logger.info("MqttBus", f"Subscribed handler on '{topic}' (qos={qos}).")
         return sub  # 返回句柄以便未来取消订阅
 
@@ -181,7 +208,15 @@ class MqttBus:
     #                 pass
 
     def _on_message(self, topic: str, payload: bytes):
-        # 扇出：支持“精确匹配 + 通配符匹配”
+        """
+        扇出消息到所有匹配的订阅者。
+        支持精确匹配和通配符匹配。
+
+        Backpressure handling:
+        - If queue is full, drop oldest message and add new one
+        - Log warnings and track dropped message count
+        """
+        # 扇出：支持"精确匹配 + 通配符匹配"
         targets = []
         with self._lock:
             # 精确
@@ -198,12 +233,21 @@ class MqttBus:
         for sub in targets:
             try:
                 sub.queue.put_nowait((topic, payload))
-            except Exception:
+            except Exception as e:
+                # Queue is full, apply backpressure by dropping oldest message
+                logger.warning("MqttBus", f"Queue full for topic '{topic}' (handler on '{sub.topic}'), dropping oldest message")
                 try:
+                    # Drop oldest message
                     sub.queue.get_nowait()
+                    # Try to add new message
                     sub.queue.put_nowait((topic, payload))
-                except Exception:
-                    pass
+                    # Track dropped messages
+                    sub.dropped_count += 1
+                    # Log if too many drops
+                    if sub.dropped_count % 100 == 0:
+                        logger.warning("MqttBus", f"Topic '{sub.topic}' has dropped {sub.dropped_count} messages due to slow handler")
+                except Exception as inner_e:
+                    logger.error("MqttBus", f"Failed to handle backpressure for topic '{topic}': {inner_e}")
 
     def _network_loop(self):
         while not self._stop.is_set():
