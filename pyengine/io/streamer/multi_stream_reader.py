@@ -348,6 +348,71 @@ class MultiVideoReader:
 
         return results
 
+    def get_one_per_source_balanced(self, timeout: float = 0.0, max_wait_iterations: int = 10) -> List[Dict[str, Any]]:
+        """
+        Get one frame from each source with balanced round-robin polling.
+
+        This method ensures fair treatment of all video sources by using a round-robin
+        approach to poll sources, preventing fast sources from starving slow sources.
+
+        Key features:
+        - Round-robin polling across all sources
+        - Tracks which sources have provided frames
+        - Continues polling until all sources provide a frame or timeout/max iterations reached
+        - Prevents starvation of slow video sources
+
+        Args:
+            timeout: Maximum total wait time for all sources (seconds)
+            max_wait_iterations: Maximum number of polling iterations before giving up
+
+        Returns:
+            List of frame info dicts (one per source if available within timeout)
+
+        Example:
+            # Wait up to 0.1 seconds for all sources to provide frames
+            batch = reader.get_one_per_source_balanced(timeout=0.1, max_wait_iterations=20)
+        """
+        if not self._sources:
+            return []
+
+        source_names = list(self._sources.keys())
+        results_dict = {}  # Use dict to track which sources have provided frames
+        deadline = time.time() + timeout if timeout > 0 else float('inf')
+        iteration = 0
+        source_idx = 0
+
+        # Continue until we have frames from all sources or reach timeout/max iterations
+        while len(results_dict) < len(source_names) and iteration < max_wait_iterations:
+            # Check timeout
+            if time.time() >= deadline:
+                break
+
+            # Get current source name in round-robin fashion
+            name = source_names[source_idx]
+
+            # Only poll this source if we haven't gotten a frame from it yet
+            if name not in results_dict:
+                source = self._sources[name]
+
+                # Try to get frame from buffer (non-blocking)
+                with source['lock']:
+                    if source['buffer']:
+                        frame_info = source['buffer'].popleft()
+                        results_dict[name] = frame_info
+
+            # Move to next source (round-robin)
+            source_idx = (source_idx + 1) % len(source_names)
+
+            # If we've completed a full round without getting any new frames, short sleep
+            if source_idx == 0:
+                iteration += 1
+                if len(results_dict) < len(source_names):
+                    # Brief sleep to avoid busy-waiting
+                    time.sleep(0.001)
+
+        # Convert dict to list, maintaining source order
+        return [results_dict[name] for name in source_names if name in results_dict]
+
     def get_batch(self, count: int, timeout: float = 0.1) -> List[Dict[str, Any]]:
         """
         Get N frames total from all sources (round-robin style).
